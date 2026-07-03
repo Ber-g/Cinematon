@@ -23,6 +23,7 @@ const app = new App(
     boothId: BOOTH_ID,
     shareBaseUrl: "https://cinematon.app",
     endAutoReturnMs: 45_000,
+    afterFilmCountdownSeconds: 60, // 1 min max pour choisir après un film
   },
 );
 

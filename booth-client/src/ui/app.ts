@@ -5,15 +5,16 @@ import { SessionManager } from "../session/SessionManager";
 import type { UnlockAdapter } from "../unlock/UnlockAdapter";
 import type { ScreenResult } from "./screens";
 import {
+  afterFilmScreen,
   endScreen,
   idleScreen,
-  interScreen,
   playerScreen,
   recoScreen,
   selectScreen,
   unlockFallbackScreen,
   unlockingScreen,
 } from "./screens";
+import { applyMoodTheme, resetMoodTheme } from "./moodTheme";
 
 export interface AppConfig {
   readonly boothId: string;
@@ -21,6 +22,8 @@ export interface AppConfig {
   readonly shareBaseUrl: string;
   /** Délai de retour à l'accueil après la fin de séance (ms). */
   readonly endAutoReturnMs: number;
+  /** Temps laissé au public pour choisir après un film, avant la page de fin (s). */
+  readonly afterFilmCountdownSeconds: number;
 }
 
 /**
@@ -62,6 +65,7 @@ export class App {
 
   // ── États ──────────────────────────────────────────────────────────────────
   private goIdle(): void {
+    resetMoodTheme(); // retour à la palette neutre entre deux visiteurs
     this.mount(idleScreen(() => this.beginUnlock()));
   }
 
@@ -87,6 +91,7 @@ export class App {
     this.mount(
       selectScreen(availableMoods(), (choice) => {
         this.lastQuery = choice;
+        applyMoodTheme(choice.mood); // la couleur suit l'humeur choisie
         this.goReco();
       }),
     );
@@ -107,23 +112,25 @@ export class App {
   }
 
   private playFilm(film: Film, source: "recommendation" | "user_choice"): void {
+    // La couleur suit l'humeur dominante du film lancé.
+    applyMoodTheme(film.moods[0] ?? this.lastQuery.mood);
     const play = this.sessions.recordPlayStart(film, source);
     this.mount(
       playerScreen(film, () => {
         this.sessions.markPlayCompleted(play.id);
-        this.goInter();
+        this.goAfterFilm(film);
       }),
     );
   }
 
-  private goInter(): void {
+  private goAfterFilm(film: Film): void {
     const count = this.sessions.currentPlays.length;
     this.mount(
-      interScreen(
-        count,
-        () => this.goSelect(),
-        () => this.goEnd(),
-      ),
+      afterFilmScreen(film, count, this.config.afterFilmCountdownSeconds, {
+        onAnother: () => this.goSelect(),
+        onEnd: () => this.goEnd(),
+        onExpire: () => this.goEnd(), // pas de choix à temps → page de fin (QR)
+      }),
     );
   }
 

@@ -25,6 +25,13 @@ export interface Film {
   readonly genres: readonly string[];
   readonly moods: readonly string[];
   readonly tags: readonly string[];
+  // Valorisation de l'auteur / page « en savoir plus ».
+  readonly director: string;
+  readonly synopsis: string;
+  /** URLs d'images (photogrammes/extraits). Vide => vignettes placeholder. */
+  readonly stills: readonly string[];
+  /** Lien externe « en savoir plus » (site auteur, fiche film…) ou null. */
+  readonly learnMoreUrl: string | null;
 }
 
 /**

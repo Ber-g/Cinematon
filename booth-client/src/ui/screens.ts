@@ -1,6 +1,6 @@
 import type { Film, Play } from "../domain/types";
 import type { UnlockStatus } from "../unlock/UnlockAdapter";
-import { el, formatDuration, renderQrDataUrl } from "./dom";
+import { createCountdown, el, formatDuration, renderQrDataUrl } from "./dom";
 
 // Chaque écran renvoie un noeud + une fonction de nettoyage optionnelle (timers,
 // vidéo…). Un seul écran est monté à la fois par App.
@@ -11,6 +11,47 @@ export interface ScreenResult {
 
 const screen = (name: string, children: Array<Node | string>): HTMLElement =>
   el("section", { class: `screen screen--${name}` }, children);
+
+// Bande de vignettes « en savoir plus ». Utilise les vraies images si le film en
+// a ; sinon génère des placeholders dégradés déterministes (déclinés par titre).
+function stillTiles(film: Film, count = 3): HTMLElement {
+  const tiles: HTMLElement[] = [];
+  if (film.stills.length > 0) {
+    for (const src of film.stills.slice(0, count)) {
+      tiles.push(el("img", { class: "still", src, alt: `Extrait — ${film.title}`, loading: "lazy" }));
+    }
+  } else {
+    // Placeholder : dégradé dérivé du tmdbId/titre pour une variété stable.
+    const seed = film.tmdbId ?? film.title.length;
+    for (let i = 0; i < count; i++) {
+      const hue = (seed * 47 + i * 61) % 360;
+      const tile = el("div", { class: "still still--placeholder" }, [
+        el("span", { class: "still__label" }, [film.title]),
+      ]);
+      tile.style.background = `linear-gradient(135deg, hsl(${hue} 40% 22%), hsl(${(hue + 40) % 360} 45% 14%))`;
+      tiles.push(tile);
+    }
+  }
+  return el("div", { class: "stills" }, tiles);
+}
+
+// Bloc de valorisation de l'auteur : réalisateur, synopsis, extraits, lien.
+function authorBlock(film: Film): HTMLElement {
+  const children: Array<Node | string> = [
+    el("p", { class: "eyebrow" }, ["Un film de"]),
+    el("h3", { class: "author__name" }, [film.director]),
+    el("p", { class: "author__synopsis" }, [film.synopsis]),
+    stillTiles(film),
+  ];
+  if (film.learnMoreUrl) {
+    children.push(
+      el("a", { class: "btn btn--ghost", href: film.learnMoreUrl, target: "_blank", rel: "noopener" }, [
+        "En savoir plus",
+      ]),
+    );
+  }
+  return el("div", { class: "author" }, children);
+}
 
 // ── Écran d'accueil (idle / attract loop) ───────────────────────────────────
 export function idleScreen(onStart: () => void): ScreenResult {
@@ -243,18 +284,36 @@ export function playerScreen(film: Film, onFinished: () => void): ScreenResult {
   };
 }
 
-// ── Entre deux films ─────────────────────────────────────────────────────────
-export function interScreen(watchedCount: number, onAnother: () => void, onEnd: () => void): ScreenResult {
+// ── Après un film : valorisation de l'auteur + choix + compte à rebours ──────
+export interface AfterFilmCallbacks {
+  readonly onAnother: () => void;
+  readonly onEnd: () => void;
+  /** Fin du compte à rebours sans action → passage à la page de fin (QR). */
+  readonly onExpire: () => void;
+}
+
+export function afterFilmScreen(
+  film: Film,
+  watchedCount: number,
+  countdownSeconds: number,
+  cb: AfterFilmCallbacks,
+): ScreenResult {
   const another = el("button", { class: "btn btn--primary btn--lg", type: "button" }, ["Encore un film"]);
-  another.addEventListener("click", onAnother);
+  another.addEventListener("click", cb.onAnother);
   const end = el("button", { class: "btn btn--ghost", type: "button" }, ["Terminer la séance"]);
-  end.addEventListener("click", onEnd);
+  end.addEventListener("click", cb.onEnd);
+
+  const countdown = createCountdown(countdownSeconds, cb.onExpire);
+
   return {
-    node: screen("inter", [
-      el("h2", {}, [watchedCount === 1 ? "Un film de vu." : `${watchedCount} films de vus.`]),
-      el("p", { class: "muted" }, ["Envie de continuer, ou de garder ça pour vous ?"]),
+    node: screen("after", [
+      el("p", { class: "muted" }, [watchedCount === 1 ? "Vous venez de voir" : `${watchedCount}ᵉ film · vous venez de voir`]),
+      el("h2", { class: "after__title" }, [`${film.title} (${film.year})`]),
+      authorBlock(film),
       el("div", { class: "actions" }, [another, end]),
+      countdown.node,
     ]),
+    dispose: countdown.dispose,
   };
 }
 
@@ -269,7 +328,10 @@ export function endScreen(
     const f = filmLookup(p.filmId);
     return el("li", { class: "recap__item" }, [
       el("span", { class: "recap__index" }, [String(i + 1)]),
-      el("span", { class: "recap__title" }, [f ? `${f.title} (${f.year})` : p.filmId]),
+      el("span", { class: "recap__text" }, [
+        el("span", { class: "recap__title" }, [f ? `${f.title} (${f.year})` : p.filmId]),
+        f ? el("span", { class: "recap__author" }, [`de ${f.director}`]) : el("span", {}, []),
+      ]),
       p.source === "recommendation" ? el("span", { class: "recap__tag" }, ["suggéré"]) : el("span", {}, []),
     ]);
   });

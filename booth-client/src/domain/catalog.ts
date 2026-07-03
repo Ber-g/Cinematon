@@ -18,6 +18,11 @@ export const FACTICE_CATALOG: readonly Film[] = [
     genres: ["drame", "contemplatif"],
     moods: ["apaisant", "mélancolique"],
     tags: ["nuit", "nature", "lent"],
+    director: "Camille Roy",
+    synopsis:
+      "Une veilleuse de nuit traverse une ville endormie et croise, à l'aube, les fantômes de ses insomnies. Un poème visuel sur le passage du temps.",
+    stills: [],
+    learnMoreUrl: null,
   },
   {
     id: "f-court-circuit",
@@ -31,6 +36,11 @@ export const FACTICE_CATALOG: readonly Film[] = [
     genres: ["comédie", "absurde"],
     moods: ["énergique", "léger"],
     tags: ["urbain", "rythmé", "dialogue"],
+    director: "Nadia Belkacem",
+    synopsis:
+      "Cinq minutes, une panne d'ascenseur, deux inconnus et un quiproquo qui dérape. Une comédie électrique où chaque seconde compte.",
+    stills: [],
+    learnMoreUrl: null,
   },
   {
     id: "f-derniere-station",
@@ -44,6 +54,11 @@ export const FACTICE_CATALOG: readonly Film[] = [
     genres: ["thriller", "drame"],
     moods: ["tendu", "sombre"],
     tags: ["huis-clos", "nuit", "intense"],
+    director: "Yohan Prévost",
+    synopsis:
+      "Dernier train, dernier quai. Un contrôleur et une voyageuse sans billet se livrent un duel psychologique jusqu'au terminus.",
+    stills: [],
+    learnMoreUrl: null,
   },
   {
     id: "f-papier",
@@ -57,6 +72,11 @@ export const FACTICE_CATALOG: readonly Film[] = [
     genres: ["animation", "poétique"],
     moods: ["apaisant", "léger"],
     tags: ["sans-dialogue", "artisanal", "doux"],
+    director: "Lior Amrani",
+    synopsis:
+      "Un origami prend vie et part à la recherche de la main qui l'a plié. Animation papier découpé, entièrement faite main, sans un mot.",
+    stills: [],
+    learnMoreUrl: null,
   },
   {
     id: "f-plein-soleil",
@@ -70,6 +90,11 @@ export const FACTICE_CATALOG: readonly Film[] = [
     genres: ["comédie", "romance"],
     moods: ["énergique", "joyeux"],
     tags: ["été", "lumineux", "dialogue"],
+    director: "Inès Fontaine",
+    synopsis:
+      "Une terrasse, un mois d'août, un serveur maladroit et une cliente qui revient chaque jour à la même heure. La romance d'un été, en neuf minutes.",
+    stills: [],
+    learnMoreUrl: null,
   },
   {
     id: "f-sous-la-cendre",
@@ -83,6 +108,11 @@ export const FACTICE_CATALOG: readonly Film[] = [
     genres: ["drame", "historique"],
     moods: ["mélancolique", "sombre"],
     tags: ["mémoire", "lent", "intense"],
+    director: "Théo Marchand",
+    synopsis:
+      "Dans une maison vidée après un deuil, une femme retrouve des lettres brûlées à moitié. Ce qui reste de la cendre suffit-il à se souvenir ?",
+    stills: [],
+    learnMoreUrl: null,
   },
   {
     id: "f-vertige",
@@ -96,6 +126,11 @@ export const FACTICE_CATALOG: readonly Film[] = [
     genres: ["expérimental", "thriller"],
     moods: ["tendu", "énergique"],
     tags: ["court", "rythmé", "sans-dialogue"],
+    director: "Sacha Novak",
+    synopsis:
+      "Trois minutes en apnée au bord du vide. Un montage vertigineux, sans dialogue, où l'image elle-même semble sur le point de tomber.",
+    stills: [],
+    learnMoreUrl: null,
   },
 ];
 

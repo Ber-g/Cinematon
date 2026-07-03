@@ -27,15 +27,24 @@ body {
 }
 
 body {
-  background:
-    radial-gradient(1200px 800px at 50% -10%, var(--bg-halo), transparent 60%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   font-family: "Georgia", "Iowan Old Style", "Times New Roman", serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* Halo d'ambiance séparé : sa couleur suit l'humeur et se fond en douceur. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(1200px 800px at 50% -10%, var(--bg-halo), transparent 60%);
+  transition: opacity 0.6s var(--ease);
 }
 
 #app {
@@ -359,9 +368,21 @@ h2 {
   font-size: 0.9rem;
 }
 
-.recap__title {
+.recap__text {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
   text-align: left;
+}
+
+.recap__title {
+  font-weight: 600;
+}
+
+.recap__author {
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 .recap__tag {
@@ -372,6 +393,7 @@ h2 {
   border: 1px solid var(--accent);
   border-radius: 999px;
   padding: 0.15rem 0.6rem;
+  flex: 0 0 auto;
 }
 
 .share {
@@ -385,4 +407,124 @@ h2 {
   border-radius: 12px;
   background: #fff;
   padding: 10px;
+}
+
+/* ── Après un film : valorisation auteur ─────────────────────────────────── */
+.screen--after {
+  gap: 1.25rem;
+}
+
+.after__title {
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+}
+
+.author {
+  width: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.author__name {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+
+.author__synopsis {
+  color: var(--text-muted);
+  max-width: 52ch;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.stills {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.still {
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  object-fit: cover;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.still--placeholder {
+  position: relative;
+}
+
+.still__label {
+  font-family: system-ui, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.75);
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+}
+
+/* ── Compte à rebours (après-film) ───────────────────────────────────────── */
+.countdown {
+  width: min(420px, 80%);
+  font-family: system-ui, sans-serif;
+}
+
+.countdown__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.countdown__clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.countdown__track {
+  height: 5px;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.countdown__fill {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+/* Sous 10 s : on attire l'œil sans stresser (couleur chaude + léger pouls). */
+.countdown.is-urgent .countdown__clock {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.countdown.is-urgent .countdown__fill {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .countdown.is-urgent .countdown__fill {
+    animation: none;
+  }
 }
