@@ -1,3 +1,13 @@
+# macOS
+.DS_Store
+
+# Documents internes de conception (non publics) — gardés en local uniquement.
+# Contiennent la stratégie produit/technique/QA et ne doivent pas être publiés.
+/ARCHITECTURE.md
+/SPEC.md
+/OPS.md
+/QA.md
+
 # Logs
 logs
 *.log

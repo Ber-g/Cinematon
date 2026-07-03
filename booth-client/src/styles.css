@@ -1,0 +1,388 @@
+/* Cinematon booth-client — parti pris : salle obscure. Fond profond, un halo
+   chaud, typo large, cibles tactiles généreuses (kiosque). Un écran à la fois. */
+
+:root {
+  --bg: #0a0a0c;
+  --bg-halo: #16121f;
+  --surface: #17171b;
+  --surface-raised: #202027;
+  --text: #f4f2ee;
+  --text-muted: #a9a6a0;
+  --accent: #e8b45a; /* ambre projecteur */
+  --accent-ink: #1a1206;
+  --line: #2a2a31;
+  --radius: 16px;
+  --tap: 64px; /* hauteur mini des cibles tactiles */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 800px at 50% -10%, var(--bg-halo), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: "Georgia", "Iowan Old Style", "Times New Roman", serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* ── Écran : plein cadre, contenu centré ─────────────────────────────────── */
+.screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: clamp(1.5rem, 5vw, 4rem);
+  text-align: center;
+  animation: fade 0.4s var(--ease);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    animation: none;
+  }
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+h2 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  max-width: 40ch;
+  margin: 0;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-family: system-ui, sans-serif;
+  margin: 0;
+}
+
+.fineprint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-family: system-ui, sans-serif;
+}
+
+/* ── Marque (idle) ────────────────────────────────────────────────────────── */
+.brand__title {
+  font-size: clamp(3rem, 12vw, 7rem);
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 40px rgba(232, 180, 90, 0.25);
+}
+
+.brand__tagline {
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  margin: 0.5rem 0 0;
+}
+
+/* ── Boutons ──────────────────────────────────────────────────────────────── */
+.btn {
+  font-family: system-ui, sans-serif;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-height: var(--tap);
+  padding: 0 2rem;
+  color: var(--text);
+  background: var(--surface-raised);
+  cursor: pointer;
+  transition: transform 0.15s var(--ease), background 0.2s var(--ease);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+.btn--ghost {
+  background: transparent;
+}
+
+.btn--lg {
+  min-height: 72px;
+  font-size: 1.2rem;
+}
+
+.btn--xl {
+  min-height: 88px;
+  font-size: 1.4rem;
+  padding: 0 3rem;
+}
+
+.btn--corner {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  min-height: 48px;
+  opacity: 0.6;
+}
+
+/* ── Spinner ──────────────────────────────────────────────────────────────── */
+.spinner {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 4px solid var(--line);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Groupes / chips (sélection humeur/durée) ────────────────────────────── */
+.group {
+  width: min(680px, 100%);
+}
+
+.group__label {
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.chip {
+  font-family: system-ui, sans-serif;
+  font-size: 1.05rem;
+  min-height: 56px;
+  padding: 0 1.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+
+.chip--on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+/* ── Reco : hero + cartes ─────────────────────────────────────────────────── */
+.hero__title {
+  font-size: clamp(2.2rem, 6vw, 4rem);
+}
+
+.hero__meta {
+  color: var(--text-muted);
+  font-family: system-ui, sans-serif;
+  margin: 0.5rem 0 0;
+}
+
+.filmcards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.filmcard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+  text-align: left;
+  min-height: var(--tap);
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  min-width: 200px;
+}
+
+.filmcard__title {
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+
+.filmcard__meta {
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* ── Lecteur ──────────────────────────────────────────────────────────────── */
+.screen--player {
+  justify-content: center;
+  gap: 2rem;
+}
+
+.player__video {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+.player__stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.player__title {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+}
+
+.sim-badge {
+  font-family: system-ui, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+}
+
+.progress {
+  width: min(680px, 80%);
+  height: 6px;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress__bar {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}
+
+/* ── Inter-films ──────────────────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* ── Fin : récap + partage ────────────────────────────────────────────────── */
+.recap {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recap__item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-family: system-ui, sans-serif;
+}
+
+.recap__index {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.recap__title {
+  flex: 1;
+  text-align: left;
+}
+
+.recap__tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+}
+
+.share {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qr {
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+}

@@ -1,0 +1,21 @@
+{
+  "name": "cinematon-booth-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cinematon booth-client — parcours kiosque. Tourne dans une fenêtre navigateur en dev, en Chromium --kiosk sur la machine dédiée.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}
