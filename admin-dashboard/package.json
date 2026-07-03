@@ -1,0 +1,23 @@
+{
+  "name": "cinematon-admin-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cinematon admin-dashboard — back-office de gestion de la flotte de cabines (Tabler).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tabler/core": "^1.0.0",
+    "bootstrap": "^5.3.3",
+    "gridstack": "^11.1.2"
+  },
+  "devDependencies": {
+    "@types/bootstrap": "^5.2.10",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}

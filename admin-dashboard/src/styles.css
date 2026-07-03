@@ -1,0 +1,32 @@
+/* Surcouche minimale au-dessus de Tabler — on ne redessine pas, on ajuste. */
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* Les cartes cliquables réagissent au survol. */
+.card-link:hover {
+  border-color: var(--tblr-primary);
+  transition: border-color 0.15s ease;
+}
+
+/* Gridstack : la carte remplit tout le widget. */
+.grid-stack-item-content {
+  display: flex;
+  overflow: visible;
+}
+.grid-stack-item-content > .card {
+  width: 100%;
+}
+
+/* Mode édition : on matérialise les widgets manipulables. */
+.grid-stack.grid-stack-animate .grid-stack-item-content {
+  outline: 2px dashed var(--tblr-primary);
+  outline-offset: 2px;
+  border-radius: var(--tblr-border-radius);
+}
+
+/* La barre latérale garde une largeur fixe confortable. */
+.navbar-vertical {
+  width: 15rem;
+}
