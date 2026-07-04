@@ -5,7 +5,18 @@ import type { Film } from "./types";
 // Remplacer intégralement dès que le catalogue réel + métadonnées sont fournis.
 // `storageUrl: null` => lecture simulée (aucun fichier requis pour tester le parcours).
 
-export const FACTICE_CATALOG: readonly Film[] = [
+// Champs « Media V2 » (organizationId, contentHash…) ajoutés par map ci-dessous —
+// évite de répéter des valeurs identiques sur chaque littéral factice.
+type SeedFilm = Omit<Film, "organizationId" | "contentHash" | "language" | "audienceTags" | "subtitles">;
+
+/** Empreinte factice déterministe (remplacée par un vrai SHA-256 à l'upload). */
+function mockHash(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h.toString(16).padStart(8, "0").repeat(8).slice(0, 64);
+}
+
+const SEED_FILMS: readonly SeedFilm[] = [
   {
     id: "f-aurora",
     title: "Aurora",
@@ -134,18 +145,42 @@ export const FACTICE_CATALOG: readonly Film[] = [
   },
 ];
 
+// Catalogue factice complet : SEED + champs Media V2 (mono-org pour le prototype).
+export const FACTICE_CATALOG: readonly Film[] = SEED_FILMS.map((f) => ({
+  ...f,
+  organizationId: "org-perchoir",
+  contentHash: mockHash(f.id),
+  language: "fr",
+  audienceTags: ["bar"],
+  subtitles: [],
+}));
+
+// Catalogue d'EXÉCUTION : part du catalogue factice, mais peut recevoir des films
+// importés (mode setup / clé USB). C'est la source de vérité du parcours.
+const runtimeCatalog: Film[] = FACTICE_CATALOG.map((f) => ({ ...f }));
+
+/** Ajoute un film au catalogue d'exécution (import USB/fichier). */
+export function addFilm(film: Film): void {
+  runtimeCatalog.push(film);
+}
+
+/** Tous les films du catalogue d'exécution. */
+export function allFilms(): readonly Film[] {
+  return runtimeCatalog;
+}
+
 /** Films actifs uniquement — jamais recommander/jouer un film désactivé. */
-export function activeCatalog(catalog: readonly Film[] = FACTICE_CATALOG): readonly Film[] {
+export function activeCatalog(catalog: readonly Film[] = runtimeCatalog): readonly Film[] {
   return catalog.filter((f) => f.active);
 }
 
 /** Ensemble des humeurs présentes dans le catalogue actif (pour l'écran de choix). */
-export function availableMoods(catalog: readonly Film[] = FACTICE_CATALOG): readonly string[] {
+export function availableMoods(catalog: readonly Film[] = runtimeCatalog): readonly string[] {
   const set = new Set<string>();
   for (const f of activeCatalog(catalog)) for (const m of f.moods) set.add(m);
   return [...set].sort();
 }
 
-export function filmById(id: string, catalog: readonly Film[] = FACTICE_CATALOG): Film | undefined {
+export function filmById(id: string, catalog: readonly Film[] = runtimeCatalog): Film | undefined {
   return catalog.find((f) => f.id === id);
 }

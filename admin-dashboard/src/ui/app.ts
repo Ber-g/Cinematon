@@ -1,6 +1,6 @@
 import { GridStack } from "gridstack";
 import type { GridStackNode } from "gridstack";
-import type { Booth, HealthStatus, Role } from "../domain/types";
+import type { Booth, HealthStatus } from "../domain/types";
 import type { FleetStore } from "../data/store";
 import { el, icon } from "./dom";
 import type { Kpi, SortKey, SortState } from "./components";
@@ -75,15 +75,16 @@ export class App {
 
   // ── Barre du haut ─────────────────────────────────────────────────────────
   private topbar(): HTMLElement {
-    const user = this.store.currentUser;
+    const identity = this.store.current;
+    const roleLabel = this.store.isGlobalAdmin ? "global_admin" : (identity.role ?? "—");
 
     const roleBtn = el("button", { class: "btn dropdown-toggle", type: "button", "data-bs-toggle": "dropdown" }, [
       icon("M12 12a4 4 0 1 0 0 -8a4 4 0 0 0 0 8zM6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2", 18),
-      el("span", { class: "d-none d-sm-inline" }, [user.name]),
+      el("span", { class: "d-none d-sm-inline" }, [`${identity.user.name} · ${roleLabel}`]),
     ]);
     const roleMenu = el("div", { class: "dropdown-menu dropdown-menu-end" }, [
-      roleOption("Opérateur (tous les outils)", "operator", user.role, (r) => this.store.setRole(r)),
-      roleOption("Gérant de bar (sans debug)", "bar_manager", user.role, (r) => this.store.setRole(r)),
+      identityOption("Admin — global_admin (tout + debug)", "user-admin", identity.user.id, (u) => this.store.switchUser(u)),
+      identityOption("Camille — super_user Le Perchoir (sans debug)", "user-camille", identity.user.id, (u) => this.store.switchUser(u)),
     ]);
 
     const themeBtn = el("button", { class: "btn btn-icon", type: "button", title: "Basculer clair/sombre" }, [
@@ -135,7 +136,7 @@ export class App {
       el("div", { class: "mb-3" }, [
         el("h2", { class: "page-title m-0" }, ["Vue d'ensemble de la flotte"]),
         el("div", { class: "text-secondary" }, [
-          this.store.isOperator ? "Toutes vos cabines." : "Vos cabines.",
+          this.store.isGlobalAdmin ? "Toutes les cabines (global admin)." : "Les cabines de votre organisation.",
           this.editing ? " · Glissez les tuiles pour réorganiser." : "",
         ]),
       ]),
@@ -252,8 +253,8 @@ function navItem(label: string, path: string, active: boolean): HTMLElement {
   ]);
 }
 
-function roleOption(label: string, role: Role, current: Role, onPick: (r: Role) => void): HTMLElement {
-  const a = el("button", { class: `dropdown-item ${role === current ? "active" : ""}`, type: "button" }, [label]);
-  a.addEventListener("click", () => onPick(role));
+function identityOption(label: string, userId: string, currentUserId: string, onPick: (u: string) => void): HTMLElement {
+  const a = el("button", { class: `dropdown-item ${userId === currentUserId ? "active" : ""}`, type: "button" }, [label]);
+  a.addEventListener("click", () => onPick(userId));
   return a;
 }

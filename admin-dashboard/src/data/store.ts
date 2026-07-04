@@ -1,35 +1,39 @@
-import type { Booth, CurrentUser, Role } from "../domain/types";
-import { MOCK_BOOTHS } from "./mockFleet";
+import type { Booth, CurrentIdentity, User } from "../domain/types";
+import { MOCK_BOOTHS, MOCK_MEMBERSHIPS, MOCK_USERS } from "./mockFleet";
 
-// Store en mémoire + persistance localStorage des ÉDITIONS (le user peut modifier
-// ses données) et de la disposition des widgets. Les données de base viennent du
-// mock ; les modifications de l'utilisateur sont réappliquées par-dessus au boot.
-// Quand fleet-api existera, ce store deviendra une couche d'accès réseau.
+// Store en mémoire + persistance localStorage des ÉDITIONS et de la disposition.
+// Aligné V2 : l'accès aux cabines est SCOPÉ par organisation (isolation stricte).
+// ⚠️ Ici le scoping est fait côté client (mock) ; en Phase 1, l'isolation réelle
+// sera appliquée par `fleet-api` à chaque endpoint (jamais en filtrage UI seul).
 
-const LS_BOOTHS = "cinematon.admin.booths.v1";
-const LS_ROLE = "cinematon.admin.role.v1";
+const LS_BOOTHS = "cinematon.admin.booths.v2";
+const LS_IDENTITY = "cinematon.admin.identity.v2";
 const LS_LAYOUT = "cinematon.admin.layout.v1";
-
-// Utilisateurs mock : bascule de rôle pour la démo.
-const USERS: Readonly<Record<Role, CurrentUser>> = {
-  operator: { id: "op-admin", name: "Admin (opérateur)", role: "operator" },
-  bar_manager: { id: "mgr-perchoir", name: "Gérant · Le Perchoir", role: "bar_manager" },
-};
 
 type Listener = () => void;
 
+/** Deux identités de démo : global_admin (voit tout) vs super_user d'une org. */
+function identityFor(userId: string): CurrentIdentity {
+  const user = MOCK_USERS.find((u) => u.id === userId) ?? (MOCK_USERS[0] as User);
+  if (user.isGlobalAdmin) return { user, activeOrganizationId: null, role: null };
+  const membership = MOCK_MEMBERSHIPS.find((m) => m.userId === user.id);
+  return {
+    user,
+    activeOrganizationId: membership?.organizationId ?? null,
+    role: membership?.role ?? null,
+  };
+}
+
 export class FleetStore {
   private booths: Booth[];
-  private user: CurrentUser;
+  private identity: CurrentIdentity;
   private listeners = new Set<Listener>();
 
   constructor() {
     this.booths = this.loadBooths();
-    const savedRole = localStorage.getItem(LS_ROLE) as Role | null;
-    this.user = USERS[savedRole ?? "operator"];
+    this.identity = identityFor(localStorage.getItem(LS_IDENTITY) ?? "user-admin");
   }
 
-  // ── Abonnement / rendu ──────────────────────────────────────────────────────
   subscribe(fn: Listener): void {
     this.listeners.add(fn);
   }
@@ -37,27 +41,30 @@ export class FleetStore {
     for (const fn of this.listeners) fn();
   }
 
-  // ── Rôle ────────────────────────────────────────────────────────────────────
-  get currentUser(): CurrentUser {
-    return this.user;
+  // ── Identité / rôle ─────────────────────────────────────────────────────────
+  get current(): CurrentIdentity {
+    return this.identity;
   }
-  setRole(role: Role): void {
-    this.user = USERS[role];
-    localStorage.setItem(LS_ROLE, role);
+  /** `global_admin` = accès total, y compris debug/shell des machines. */
+  get isGlobalAdmin(): boolean {
+    return this.identity.user.isGlobalAdmin;
+  }
+  switchUser(userId: string): void {
+    this.identity = identityFor(userId);
+    localStorage.setItem(LS_IDENTITY, userId);
     this.emit();
   }
-  get isOperator(): boolean {
-    return this.user.role === "operator";
-  }
 
-  // ── Lecture ─────────────────────────────────────────────────────────────────
-  /** Cabines visibles selon le rôle : opérateur = tout, gérant = les siennes. */
+  // ── Lecture (SCOPÉE par organisation — isolation) ───────────────────────────
+  /** global_admin → toutes les cabines ; sinon uniquement celles de son org. */
   visibleBooths(): Booth[] {
-    if (this.isOperator) return [...this.booths];
-    return this.booths.filter((b) => b.ownerId === this.user.id);
+    if (this.isGlobalAdmin) return [...this.booths];
+    const orgId = this.identity.activeOrganizationId;
+    return orgId ? this.booths.filter((b) => b.organizationId === orgId) : [];
   }
+  /** Respecte l'isolation : ne renvoie une cabine que si elle est visible. */
   boothById(id: string): Booth | undefined {
-    return this.booths.find((b) => b.id === id);
+    return this.visibleBooths().find((b) => b.id === id);
   }
 
   // ── Écriture (données éditables) ────────────────────────────────────────────
@@ -86,10 +93,6 @@ export class FleetStore {
   }
   saveLayout(layout: unknown): void {
     localStorage.setItem(LS_LAYOUT, JSON.stringify(layout));
-  }
-  resetLayout(): void {
-    localStorage.removeItem(LS_LAYOUT);
-    this.emit();
   }
 
   // ── Persistance interne ─────────────────────────────────────────────────────

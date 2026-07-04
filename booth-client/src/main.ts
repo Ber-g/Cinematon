@@ -13,12 +13,13 @@ const root = document.getElementById("app");
 if (!root) throw new Error("Élément #app introuvable");
 
 const BOOTH_ID = "booth-proto-01";
+const ORGANIZATION_ID = "org-perchoir"; // org propriétaire de cette cabine (V2)
 
 const app = new App(
   root,
   new MockUnlockAdapter(), // mock : simule succès ET échecs
   new RuleBasedRecommender(), // reco prototype : règles sur métadonnées
-  new SessionManager(BOOTH_ID),
+  new SessionManager(BOOTH_ID, ORGANIZATION_ID),
   {
     boothId: BOOTH_ID,
     shareBaseUrl: "https://cinematon.app",

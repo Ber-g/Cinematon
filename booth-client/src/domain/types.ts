@@ -7,6 +7,14 @@ export type UnlockMethod = "mock" | "card" | "coin" | "token" | "free";
 /** Origine d'un film lancé : choisi par l'utilisateur ou proposé par la reco. */
 export type PlaySource = "user_choice" | "recommendation";
 
+/** Sous-titre d'un média (aligné sur le modèle Media V2). */
+export interface Subtitle {
+  readonly lang: string; // ISO (fr, en…)
+  readonly format: "vtt" | "srt";
+  readonly url: string;
+  readonly workflowStatus: "todo" | "rework" | "verified";
+}
+
 /**
  * Un court métrage jouable. Enrichi de métadonnées éditoriales (genres, moods,
  * tags) qui pilotent la recommandation. `tmdbId` est le pivot pour l'export
@@ -24,6 +32,7 @@ export interface Film {
   readonly tmdbId: number | null;
   readonly genres: readonly string[];
   readonly moods: readonly string[];
+  /** Tags éditoriaux (nuit, lent…). Distincts des tags d'audience (whitelist). */
   readonly tags: readonly string[];
   // Valorisation de l'auteur / page « en savoir plus ».
   readonly director: string;
@@ -32,6 +41,17 @@ export interface Film {
   readonly stills: readonly string[];
   /** Lien externe « en savoir plus » (site auteur, fiche film…) ou null. */
   readonly learnMoreUrl: string | null;
+  // ── Alignement modèle Media V2 (multi-org) ──────────────────────────────────
+  /** Organisation propriétaire du média (isolation stricte). */
+  readonly organizationId: string;
+  /** Empreinte SHA-256 du fichier (dedup + intégrité). */
+  readonly contentHash: string;
+  /** Langue principale du média (ISO). */
+  readonly language: string;
+  /** Tags d'audience pour la whitelist (18+, enfant, bar, festival…). */
+  readonly audienceTags: readonly string[];
+  /** Sous-titres disponibles. */
+  readonly subtitles: readonly Subtitle[];
 }
 
 /**
@@ -42,6 +62,8 @@ export interface Film {
 export interface Session {
   readonly id: string;
   readonly boothId: string;
+  /** Organisation propriétaire de la cabine (isolation stricte, V2). */
+  readonly organizationId: string;
   readonly startedAt: number; // epoch ms
   endedAt: number | null;
   readonly shareToken: string;

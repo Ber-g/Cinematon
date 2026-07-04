@@ -26,7 +26,8 @@ function meter(label: string, value: number, unit: string, ok: boolean): HTMLEle
 export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: Booth) => void): void {
   const booth = store.boothById(boothId);
   if (!booth) return;
-  const isOp = store.isOperator;
+  // Outils de debug/shell = global_admin UNIQUEMENT (exigence sécurité V2/F7).
+  const canDebug = store.isGlobalAdmin;
 
   const body: HTMLElement[] = [
     el("div", { class: "d-flex align-items-center flex-wrap gap-2 mb-2" }, [
@@ -84,8 +85,8 @@ export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: 
     booth.notes ? el("div", { class: "alert alert-secondary" }, [booth.notes]) : el("span", {}, []),
   ];
 
-  // Section DEBUG — opérateur uniquement.
-  if (isOp) {
+  // Section DEBUG — global_admin uniquement (jamais un client, même super_user).
+  if (canDebug) {
     const actionsRow = el("div", { class: "btn-list mb-3" }, [
       actionButton("Redémarrer", "M12 3a9 9 0 1 0 9 9M12 3v6h6", () => remoteAction(store, booth, "Redémarrage demandé (watchdog)")),
       actionButton("Pousser le contenu", "M12 3v12M8 11l4 4l4 -4M4 21h16", () => remoteAction(store, booth, "Push contenu/metadata déclenché")),
@@ -104,7 +105,7 @@ export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: 
       );
 
     body.push(
-      el("div", { class: "hr-text" }, ["Outils opérateur"]),
+      el("div", { class: "hr-text" }, ["Outils global admin"]),
       actionsRow,
       el("h4", {}, ["Journaux"]),
       el("div", { class: "table-responsive mb-3" }, [
@@ -113,7 +114,7 @@ export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: 
       el("button", { class: "btn btn-outline-danger w-100", type: "button", "data-action": "delete" }, ["Supprimer cette cabine"]),
     );
   } else {
-    body.push(el("div", { class: "text-secondary small" }, ["Vue gérant — les outils techniques sont réservés à l'opérateur."]));
+    body.push(el("div", { class: "text-secondary small" }, ["Les outils techniques (journaux, redémarrage, push) sont réservés au global admin."]));
   }
 
   const offEl = el("div", { class: "offcanvas offcanvas-end", tabindex: "-1" }, [
@@ -176,7 +177,11 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       telemetry: { uptimePct: 100, temperatureC: 38, storageFreePct: 80, cpuLoadPct: 20, currentFilmTitle: null, connection: "wifi", signalPct: 70 },
       logs: [],
       history: [],
-      ownerId: store.currentUser.id,
+      // Nouvelle cabine rattachée à l'org active (global_admin → org par défaut).
+      organizationId: store.current.activeOrganizationId ?? "org-perchoir",
+      address: "",
+      gpsLat: null,
+      gpsLng: null,
       notes: "",
     } satisfies Booth);
 

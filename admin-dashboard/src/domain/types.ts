@@ -1,6 +1,6 @@
-// Modèle de domaine du back-office. Préfigure le futur backend (fleet-api) et
-// reste extensible : `ownerId`/`managerId` ouvrent la porte à des comptes (et un
-// jour à une couche publique) sans re-designer le schéma.
+// Modèle de domaine du back-office. Préfigure le futur backend (fleet-api).
+// Aligné V2 : multi-organisations avec isolation stricte — `organizationId` sur
+// toute entité tenant-scoped (même discipline que `boothId` du jour 1).
 
 /**
  * Statut de SANTÉ — un seul à la fois (exclusif). C'est la couleur dominante de
@@ -21,8 +21,35 @@ export type HealthStatus =
  */
 export type BoothIndicator = "powered" | "in_use" | "updating";
 
-/** Rôle de l'utilisateur du back-office. */
-export type Role = "operator" | "bar_manager";
+// ── Multi-organisations (V2) ─────────────────────────────────────────────────
+
+/** Rôle d'un utilisateur AU SEIN d'une organisation. */
+export type OrgRole = "super_user" | "manager" | "operator" | "viewer";
+
+export type OrganizationType = "bar" | "festival" | "event";
+
+export interface Organization {
+  readonly id: string;
+  name: string;
+  type: OrganizationType;
+  /** Paramètres propres : thème UI + liste blanche de tags d'audience. */
+  settings: { themeId?: string; whitelistTags: string[] };
+}
+
+export interface User {
+  readonly id: string;
+  name: string;
+  email: string;
+  /** Accès transverse à TOUT (l'exploitant). Contourne le scoping par org. */
+  isGlobalAdmin: boolean;
+}
+
+/** Appartenance user × organisation × rôle (un user a 0..n memberships). */
+export interface Membership {
+  readonly userId: string;
+  readonly organizationId: string;
+  readonly role: OrgRole;
+}
 
 /** Type de connexion réseau de la cabine. */
 export type ConnectionType = "wifi" | "lte";
@@ -68,14 +95,62 @@ export interface Booth {
   logs: BoothLog[];
   /** Historique journalier (sessions + bande passante) pour les graphes. */
   history: readonly DailyStat[];
-  /** Propriétaire/gérant — un gérant de bar ne voit que ses cabines. */
-  ownerId: string;
+  /** Organisation propriétaire (isolation stricte) — remplace `ownerId`. */
+  organizationId: string;
+  /** Adresse physique (texte). GPS nullable — matériel plus tard. */
+  address: string;
+  gpsLat: number | null;
+  gpsLng: number | null;
   notes: string;
 }
 
-/** Utilisateur connecté au back-office (mock pour l'instant). */
-export interface CurrentUser {
+/**
+ * Identité active dans le back-office (mock). `global_admin` voit tout ; sinon la
+ * vue est scopée à `activeOrganizationId` avec le rôle correspondant.
+ */
+export interface CurrentIdentity {
+  readonly user: User;
+  readonly activeOrganizationId: string | null;
+  readonly role: OrgRole | null;
+}
+
+// ── Médias (modèle canonique V2 — types posés maintenant, UI construite en Phase 2) ─
+
+export interface Subtitle {
+  readonly lang: string;
+  readonly format: "vtt" | "srt";
+  readonly url: string;
+  readonly workflowStatus: "todo" | "rework" | "verified";
+}
+
+export interface Media {
   readonly id: string;
-  readonly name: string;
-  readonly role: Role;
+  readonly organizationId: string;
+  /** Empreinte SHA-256 — dedup (unique par org) + intégrité. */
+  readonly contentHash: string;
+  title: string;
+  year: number;
+  durationSeconds: number;
+  language: string;
+  editorialTags: string[];
+  audienceTags: string[];
+  subtitles: Subtitle[];
+}
+
+export type StorageType = "local" | "usb" | "object";
+
+export interface StorageLocation {
+  readonly id: string;
+  readonly boothId: string;
+  readonly type: StorageType;
+  label: string;
+  capacityBytes: number;
+  freeBytes: number;
+}
+
+/** Présence physique d'un média sur un support de stockage. */
+export interface MediaInstance {
+  readonly id: string;
+  readonly mediaId: string;
+  readonly storageLocationId: string;
 }

@@ -26,7 +26,10 @@ export class SessionManager {
   private session: Session | null = null;
   private plays: Play[] = [];
 
-  constructor(private readonly boothId: string) {}
+  constructor(
+    private readonly boothId: string,
+    private readonly organizationId: string,
+  ) {}
 
   /** Démarre une session après un déverrouillage réussi. */
   start(unlockMethod: UnlockMethod, amount: number | null, paymentProviderRef: string | null): Session {
@@ -34,6 +37,7 @@ export class SessionManager {
     this.session = {
       id: randomId("sess"),
       boothId: this.boothId,
+      organizationId: this.organizationId,
       startedAt: now,
       endedAt: null,
       shareToken: generateShareToken(),

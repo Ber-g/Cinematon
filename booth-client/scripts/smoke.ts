@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   assert(/^[A-Za-z0-9_-]{20,}$/.test(t1), "token base64url ~128 bits, non séquentiel");
 
   console.log("3. Session multi-films + Play.source");
-  const sm = new SessionManager("booth-test");
+  const sm = new SessionManager("booth-test", "org-test");
   const session = sm.start("mock", null, null);
   assert(session.shareToken.length > 0 && !("filmId" in (session as object)), "Session sans film_id, avec token");
 

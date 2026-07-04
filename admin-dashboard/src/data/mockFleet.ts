@@ -1,4 +1,4 @@
-import type { Booth, DailyStat } from "../domain/types";
+import type { Booth, DailyStat, Membership, Organization, User } from "../domain/types";
 
 // ⚠️ DONNÉES MOCK — préfigurent le futur backend (fleet-api). À remplacer par des
 // appels réseau réels. Structure identique au modèle de domaine.
@@ -23,7 +23,11 @@ function genHistory(seed: number, scale: number): DailyStat[] {
   return out;
 }
 
-export const MOCK_BOOTHS: readonly Booth[] = [
+// Littéraux « seed » avec ownerId ; le mapping ci-dessous les transpose vers le
+// modèle V2 (organizationId + adresse + GPS nullable).
+type SeedBooth = Omit<Booth, "organizationId" | "address" | "gpsLat" | "gpsLng"> & { ownerId: string };
+
+const SEED_BOOTHS: readonly SeedBooth[] = [
   {
     id: "booth-paris-01",
     label: "Cinematon — Le Perchoir",
@@ -129,4 +133,40 @@ export const MOCK_BOOTHS: readonly Booth[] = [
     ownerId: "mgr-cantine",
     notes: "",
   },
+];
+
+// Chaque ancien propriétaire = une organisation cliente (V2).
+const ORG_BY_OWNER: Readonly<Record<string, string>> = {
+  "mgr-perchoir": "org-perchoir",
+  "mgr-comptoir": "org-comptoir",
+  "mgr-commune": "org-lyon",
+  "mgr-hangar": "org-lyon",
+  "mgr-molotov": "org-molotov",
+  "mgr-cantine": "org-cantine",
+};
+
+export const MOCK_BOOTHS: readonly Booth[] = SEED_BOOTHS.map(({ ownerId, ...b }) => ({
+  ...b,
+  organizationId: ORG_BY_OWNER[ownerId] ?? "org-unknown",
+  address: b.location,
+  gpsLat: null,
+  gpsLng: null,
+}));
+
+// ── Organisations, utilisateurs, appartenances (mock V2) ─────────────────────
+export const MOCK_ORGS: readonly Organization[] = [
+  { id: "org-perchoir", name: "Le Perchoir", type: "bar", settings: { whitelistTags: ["bar", "18+"] } },
+  { id: "org-comptoir", name: "Le Comptoir Général", type: "bar", settings: { whitelistTags: ["bar"] } },
+  { id: "org-lyon", name: "Collectif Lyon", type: "festival", settings: { whitelistTags: ["festival", "18+"] } },
+  { id: "org-molotov", name: "Le Molotov", type: "bar", settings: { whitelistTags: ["bar"] } },
+  { id: "org-cantine", name: "La Cantine du Voyage", type: "event", settings: { whitelistTags: ["event", "enfant"] } },
+];
+
+export const MOCK_USERS: readonly User[] = [
+  { id: "user-admin", name: "Admin", email: "admin@cinematon.app", isGlobalAdmin: true },
+  { id: "user-camille", name: "Camille (Le Perchoir)", email: "camille@leperchoir.fr", isGlobalAdmin: false },
+];
+
+export const MOCK_MEMBERSHIPS: readonly Membership[] = [
+  { userId: "user-camille", organizationId: "org-perchoir", role: "super_user" },
 ];
