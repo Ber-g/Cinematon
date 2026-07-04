@@ -90,8 +90,53 @@ export class FleetStore {
     // Cabines : la RLS scope déjà par organisation → on charge tel quel.
     const { data: booths } = await supabase!.from("booths").select("*");
     this.booths = (booths ?? []).map(rowToBooth);
+    await this.enrichBooths();
     this.authed = true;
     this.emit();
+  }
+
+  /**
+   * Complète chaque cabine avec ses agrégats (non portés par `booths`) :
+   * historique 14 j + sessions/bande passante du jour (daily_stats), revenu du
+   * jour (transactions), journaux (alerts). Toutes ces requêtes sont scopées par
+   * la RLS. Peu de requêtes groupées plutôt qu'une par cabine.
+   */
+  private async enrichBooths(): Promise<void> {
+    if (this.booths.length === 0) return;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const sinceStr = new Date(Date.now() - 13 * 86_400_000).toISOString().slice(0, 10);
+
+    interface StatRow { booth_id: string; date: string; sessions: number; bandwidth_mb: number }
+    interface TxRow { booth_id: string; amount_cents: number; created_at: string }
+    interface AlertRow { booth_id: string | null; severity: string; message: string; created_at: string }
+
+    const [stats, tx, alerts] = await Promise.all([
+      supabase!.from("daily_stats").select("booth_id,date,sessions,bandwidth_mb").gte("date", sinceStr),
+      supabase!.from("transactions").select("booth_id,amount_cents,created_at"),
+      supabase!.from("alerts").select("booth_id,severity,message,created_at").order("created_at", { ascending: false }),
+    ]);
+    const statRows = (stats.data ?? []) as StatRow[];
+    const txRows = (tx.data ?? []) as TxRow[];
+    const alertRows = (alerts.data ?? []) as AlertRow[];
+
+    this.booths = this.booths.map((b) => {
+      const history = statRows
+        .filter((s) => s.booth_id === b.id)
+        .sort((a, c) => (a.date < c.date ? -1 : 1))
+        .map((s) => ({ date: s.date, sessions: s.sessions, bandwidthMb: s.bandwidth_mb }));
+      const todayStat = statRows.find((s) => s.booth_id === b.id && s.date === todayStr);
+      const revenueTodayCents = txRows
+        .filter((t) => t.booth_id === b.id && t.created_at.slice(0, 10) === todayStr)
+        .reduce((n, t) => n + t.amount_cents, 0);
+      const logs = alertRows
+        .filter((a) => a.booth_id === b.id)
+        .map((a) => ({
+          at: new Date(a.created_at).getTime(),
+          level: (a.severity === "critical" ? "error" : a.severity) as "info" | "warn" | "error",
+          message: a.message,
+        }));
+      return { ...b, history, sessionsToday: todayStat?.sessions ?? 0, revenueTodayCents, logs };
+    });
   }
 
   // ── Identité / rôle ─────────────────────────────────────────────────────────
