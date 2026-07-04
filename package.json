@@ -1,0 +1,11 @@
+{
+  "name": "cinematon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cinematon — monorepo : cabines, back-office, backend, domaine partagé.",
+  "workspaces": [
+    "packages/*",
+    "booth-client",
+    "admin-dashboard"
+  ]
+}
