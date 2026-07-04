@@ -3,7 +3,8 @@ import type { Booth, HealthStatus } from "../domain/types";
 import { allHealthStatuses, healthMeta } from "../domain/status";
 import type { FleetStore } from "../data/store";
 import { el, formatClockTime, formatMoney, icon } from "./dom";
-import { healthBadge, indicatorChips } from "./components";
+import { connectionBadge, healthBadge, indicatorChips } from "./components";
+import { timeSeriesChart } from "./chart";
 
 // Détail d'une cabine (offcanvas) + formulaire add/edit (modal). Les OUTILS DE
 // DEBUG (journaux, redémarrage, push, suppression) ne sont rendus que pour
@@ -28,11 +29,32 @@ export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: 
   const isOp = store.isOperator;
 
   const body: HTMLElement[] = [
-    el("div", { class: "d-flex align-items-center gap-2 mb-3" }, [healthBadge(booth.health), indicatorChips(booth)]),
+    el("div", { class: "d-flex align-items-center flex-wrap gap-2 mb-2" }, [
+      healthBadge(booth.health),
+      indicatorChips(booth),
+      connectionBadge(booth),
+    ]),
     el("div", { class: "text-secondary mb-3" }, [booth.location]),
 
+    // Graphes d'utilisation : sessions/jour (aire) + bande passante/jour (ligne).
+    el("h4", {}, ["Statistiques (14 jours)"]),
+    timeSeriesChart({
+      title: "Visionnages par jour",
+      points: booth.history.map((d) => ({ date: d.date, value: d.sessions })),
+      kind: "area",
+      hue: "var(--tblr-primary)",
+      formatValue: (n) => String(n),
+    }),
+    timeSeriesChart({
+      title: "Bande passante par jour",
+      points: booth.history.map((d) => ({ date: d.date, value: d.bandwidthMb })),
+      kind: "line",
+      hue: "var(--tblr-teal)",
+      formatValue: (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)} Go` : `${n} Mo`),
+    }),
+
     // Télémétrie (visible par tous).
-    el("h4", {}, ["Télémétrie"]),
+    el("h4", { class: "mt-3" }, ["Télémétrie"]),
     meter("Disponibilité (30 j)", booth.telemetry.uptimePct, " %", booth.telemetry.uptimePct >= 95),
     meter("Stockage libre", booth.telemetry.storageFreePct, " %", booth.telemetry.storageFreePct >= 15),
     meter("Charge CPU", booth.telemetry.cpuLoadPct, " %", booth.telemetry.cpuLoadPct < 80),
@@ -151,8 +173,9 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       softwareVersion: "0.2.0",
       sessionsToday: 0,
       revenueTodayCents: 0,
-      telemetry: { uptimePct: 100, temperatureC: 38, storageFreePct: 80, cpuLoadPct: 20, currentFilmTitle: null },
+      telemetry: { uptimePct: 100, temperatureC: 38, storageFreePct: 80, cpuLoadPct: 20, currentFilmTitle: null, connection: "wifi", signalPct: 70 },
       logs: [],
+      history: [],
       ownerId: store.currentUser.id,
       notes: "",
     } satisfies Booth);

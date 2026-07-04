@@ -1,10 +1,27 @@
-import type { Booth } from "../domain/types";
+import type { Booth, DailyStat } from "../domain/types";
 
 // ⚠️ DONNÉES MOCK — préfigurent le futur backend (fleet-api). À remplacer par des
 // appels réseau réels. Structure identique au modèle de domaine.
 
 const MIN = 60_000;
+const DAY = 86_400_000;
 const now = Date.now();
+
+/** Génère 14 jours d'historique (sessions + bande passante) de façon stable. */
+function genHistory(seed: number, scale: number): DailyStat[] {
+  const out: DailyStat[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const date = new Date(now - i * DAY).toISOString().slice(0, 10);
+    // Pseudo-aléatoire déterministe (stable entre les rendus).
+    const r = Math.abs(Math.sin(seed * 12.9898 + i * 78.233)) % 1;
+    const weekend = [0, 6].includes(new Date(now - i * DAY).getDay()) ? 1.5 : 1;
+    const sessions = Math.round(r * 20 * scale * weekend);
+    // Bande passante corrélée aux sessions (~350 Mo/film) + trafic de sync.
+    const bandwidthMb = Math.round(sessions * 350 + r * 800);
+    out.push({ date, sessions, bandwidthMb });
+  }
+  return out;
+}
 
 export const MOCK_BOOTHS: readonly Booth[] = [
   {
@@ -17,11 +34,12 @@ export const MOCK_BOOTHS: readonly Booth[] = [
     softwareVersion: "0.2.0",
     sessionsToday: 23,
     revenueTodayCents: 11500,
-    telemetry: { uptimePct: 99.4, temperatureC: 41, storageFreePct: 62, cpuLoadPct: 34, currentFilmTitle: "Aurora" },
+    telemetry: { uptimePct: 99.4, temperatureC: 41, storageFreePct: 62, cpuLoadPct: 34, currentFilmTitle: "Aurora", connection: "wifi", signalPct: 82 },
     logs: [
       { at: now - 12_000, level: "info", message: "Heartbeat OK" },
       { at: now - 5 * MIN, level: "info", message: "Session démarrée (unlock: mock)" },
     ],
+    history: genHistory(1, 1.3),
     ownerId: "mgr-perchoir",
     notes: "",
   },
@@ -35,11 +53,12 @@ export const MOCK_BOOTHS: readonly Booth[] = [
     softwareVersion: "0.2.0",
     sessionsToday: 8,
     revenueTodayCents: 4000,
-    telemetry: { uptimePct: 97.1, temperatureC: 47, storageFreePct: 11, cpuLoadPct: 52, currentFilmTitle: null },
+    telemetry: { uptimePct: 97.1, temperatureC: 47, storageFreePct: 11, cpuLoadPct: 52, currentFilmTitle: null, connection: "wifi", signalPct: 45 },
     logs: [
       { at: now - 30_000, level: "warn", message: "Stockage faible : 11% libre" },
       { at: now - 40 * MIN, level: "info", message: "Sync catalogue terminée" },
     ],
+    history: genHistory(2, 0.8),
     ownerId: "mgr-comptoir",
     notes: "Prévoir purge du cache films.",
   },
@@ -53,11 +72,12 @@ export const MOCK_BOOTHS: readonly Booth[] = [
     softwareVersion: "0.1.9",
     sessionsToday: 2,
     revenueTodayCents: 1000,
-    telemetry: { uptimePct: 88.0, temperatureC: 55, storageFreePct: 44, cpuLoadPct: 12, currentFilmTitle: null },
+    telemetry: { uptimePct: 88.0, temperatureC: 55, storageFreePct: 44, cpuLoadPct: 12, currentFilmTitle: null, connection: "lte", signalPct: 61 },
     logs: [
       { at: now - 90_000, level: "error", message: "Crash lecteur : redémarrage watchdog #3" },
       { at: now - 95_000, level: "error", message: "Paiement refusé (adaptateur mock: timeout)" },
     ],
+    history: genHistory(3, 0.5),
     ownerId: "mgr-commune",
     notes: "",
   },
@@ -71,8 +91,9 @@ export const MOCK_BOOTHS: readonly Booth[] = [
     softwareVersion: "0.1.9",
     sessionsToday: 0,
     revenueTodayCents: 0,
-    telemetry: { uptimePct: 61.2, temperatureC: 0, storageFreePct: 70, cpuLoadPct: 0, currentFilmTitle: null },
+    telemetry: { uptimePct: 61.2, temperatureC: 0, storageFreePct: 70, cpuLoadPct: 0, currentFilmTitle: null, connection: "lte", signalPct: 0 },
     logs: [{ at: now - 46 * MIN, level: "warn", message: "Dernier heartbeat — puis silence" }],
+    history: genHistory(4, 0.6),
     ownerId: "mgr-hangar",
     notes: "Vérifier alim / réseau du lieu.",
   },
@@ -86,8 +107,9 @@ export const MOCK_BOOTHS: readonly Booth[] = [
     softwareVersion: "0.2.0",
     sessionsToday: 0,
     revenueTodayCents: 0,
-    telemetry: { uptimePct: 98.8, temperatureC: 38, storageFreePct: 80, cpuLoadPct: 66, currentFilmTitle: null },
+    telemetry: { uptimePct: 98.8, temperatureC: 38, storageFreePct: 80, cpuLoadPct: 66, currentFilmTitle: null, connection: "wifi", signalPct: 73 },
     logs: [{ at: now - 20_000, level: "info", message: "Mise à jour 0.2.0 → 0.2.1 en cours (34%)" }],
+    history: genHistory(5, 1.0),
     ownerId: "mgr-molotov",
     notes: "",
   },
@@ -101,8 +123,9 @@ export const MOCK_BOOTHS: readonly Booth[] = [
     softwareVersion: "0.2.0",
     sessionsToday: 15,
     revenueTodayCents: 7500,
-    telemetry: { uptimePct: 99.9, temperatureC: 39, storageFreePct: 55, cpuLoadPct: 28, currentFilmTitle: null },
+    telemetry: { uptimePct: 99.9, temperatureC: 39, storageFreePct: 55, cpuLoadPct: 28, currentFilmTitle: null, connection: "lte", signalPct: 88 },
     logs: [{ at: now - 8_000, level: "info", message: "Heartbeat OK" }],
+    history: genHistory(6, 1.1),
     ownerId: "mgr-cantine",
     notes: "",
   },

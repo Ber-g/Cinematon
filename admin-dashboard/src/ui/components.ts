@@ -1,8 +1,8 @@
 import type { Booth, HealthStatus } from "../domain/types";
-import { allHealthStatuses, healthMeta, indicatorLabel } from "../domain/status";
+import { allHealthStatuses, connectionMeta, healthMeta, indicatorLabel } from "../domain/status";
 import { el, formatMoney, icon, relativeTime } from "./dom";
 
-// Composants d'affichage réutilisables (statut, KPI, cartes, tableau, répartition).
+// Composants d'affichage réutilisables (statut, connexion, KPI, cartes, tableau).
 
 /** Badge de santé : couleur + ICÔNE + LIBELLÉ (jamais couleur seule — a11y). */
 export function healthBadge(status: HealthStatus): HTMLElement {
@@ -13,20 +13,30 @@ export function healthBadge(status: HealthStatus): HTMLElement {
   ]);
 }
 
-/** Pastille d'indicateur (sous tension, en cours…). */
+/** Connexion : icône Wi-Fi / LTE + libellé + qualité de signal. */
+export function connectionBadge(booth: Booth): HTMLElement {
+  const m = connectionMeta(booth.telemetry.connection);
+  const sig = booth.telemetry.signalPct;
+  const tone = sig === 0 ? "text-secondary" : sig < 40 ? "text-yellow" : "text-green";
+  return el("span", { class: `d-inline-flex align-items-center gap-1 ${tone}`, title: `Signal ${sig}%` }, [
+    icon(m.iconPath, 16),
+    el("span", { class: "small" }, [`${m.label} · ${sig}%`]),
+  ]);
+}
+
 export function indicatorChips(booth: Booth): HTMLElement {
-  const chips = booth.indicators.map((ind) =>
-    el("span", { class: "badge bg-secondary-lt" }, [indicatorLabel(ind)]),
-  );
+  const chips = booth.indicators.map((ind) => el("span", { class: "badge bg-secondary-lt" }, [indicatorLabel(ind)]));
   return el("span", { class: "d-inline-flex flex-wrap gap-1" }, chips.length ? chips : [el("span", { class: "text-secondary" }, ["—"])]);
 }
 
-// ── Tuiles KPI (stat tiles — des hero numbers, pas des graphes gadgets) ──────
+// ── Tuiles KPI (stat tiles). Certaines filtrent la flotte au clic. ───────────
 export interface Kpi {
   readonly label: string;
   readonly value: string;
-  readonly color: string; // couleur Tabler pour l'accent
+  readonly color: string;
   readonly iconPath: string;
+  /** Si présent, cliquer la tuile filtre la vue sur ces statuts ([] = tout). */
+  readonly filter?: readonly HealthStatus[];
 }
 
 export function computeKpis(booths: readonly Booth[]): Kpi[] {
@@ -34,22 +44,20 @@ export function computeKpis(booths: readonly Booth[]): Kpi[] {
   const sessions = booths.reduce((n, b) => n + b.sessionsToday, 0);
   const revenue = booths.reduce((n, b) => n + b.revenueTodayCents, 0);
   return [
-    { label: "Cabines", value: String(booths.length), color: "azure", iconPath: "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6" },
-    { label: "Opérationnelles", value: String(count("operational")), color: "green", iconPath: "M5 12l5 5l10 -10" },
-    { label: "Attention", value: String(count("attention")), color: "yellow", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z" },
-    { label: "En panne / hors-ligne", value: String(count("error") + count("offline")), color: "red", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z" },
+    { label: "Cabines", value: String(booths.length), color: "azure", iconPath: "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", filter: [] },
+    { label: "Opérationnelles", value: String(count("operational")), color: "green", iconPath: "M5 12l5 5l10 -10", filter: ["operational"] },
+    { label: "Attention", value: String(count("attention")), color: "yellow", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["attention"] },
+    { label: "En panne / hors-ligne", value: String(count("error") + count("offline")), color: "red", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["error", "offline"] },
     { label: "Sessions (aujourd'hui)", value: String(sessions), color: "purple", iconPath: "M8 4v16M16 4v16M4 8h16M4 16h16" },
     { label: "Revenu (aujourd'hui)", value: formatMoney(revenue), color: "teal", iconPath: "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6" },
   ];
 }
 
-export function kpiTile(kpi: Kpi): HTMLElement {
-  return el("div", { class: "card card-sm h-100" }, [
+export function kpiTile(kpi: Kpi, active: boolean, clickable: boolean, onClick: () => void): HTMLElement {
+  const card = el("div", { class: `card card-sm h-100 ${clickable ? "cursor-pointer kpi-clickable" : ""} ${active ? `kpi-active border-${kpi.color}` : ""}` }, [
     el("div", { class: "card-body" }, [
       el("div", { class: "row align-items-center" }, [
-        el("div", { class: "col-auto" }, [
-          el("span", { class: `bg-${kpi.color}-lt text-${kpi.color} avatar` }, [icon(kpi.iconPath, 22)]),
-        ]),
+        el("div", { class: "col-auto" }, [el("span", { class: `bg-${kpi.color}-lt text-${kpi.color} avatar` }, [icon(kpi.iconPath, 22)])]),
         el("div", { class: "col" }, [
           el("div", { class: "fs-2 fw-bold lh-1" }, [kpi.value]),
           el("div", { class: "text-secondary" }, [kpi.label]),
@@ -57,6 +65,18 @@ export function kpiTile(kpi: Kpi): HTMLElement {
       ]),
     ]),
   ]);
+  if (clickable) {
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+    card.addEventListener("click", onClick);
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onClick();
+      }
+    });
+  }
+  return card;
 }
 
 // ── Répartition des statuts (barre horizontale empilée, libellée) ────────────
@@ -71,12 +91,7 @@ export function statusDistribution(booths: readonly Booth[]): HTMLElement {
     { class: "progress progress-separated mb-3" },
     segments.map((seg) => {
       const m = healthMeta(seg.status);
-      return el("div", {
-        class: `progress-bar bg-${m.color}`,
-        role: "progressbar",
-        style: `width: ${(seg.n / total) * 100}%`,
-        title: `${m.label} : ${seg.n}`,
-      });
+      return el("div", { class: `progress-bar bg-${m.color}`, role: "progressbar", style: `width: ${(seg.n / total) * 100}%`, title: `${m.label} : ${seg.n}` });
     }),
   );
 
@@ -105,14 +120,11 @@ export function boothCard(booth: Booth, onOpen: (id: string) => void): HTMLEleme
   const card = el("div", { class: "card h-100 card-link cursor-pointer", role: "button", tabindex: "0" }, [
     el("div", { class: "card-body" }, [
       el("div", { class: "d-flex align-items-start justify-content-between mb-2" }, [
-        el("div", {}, [
-          el("div", { class: "fw-bold" }, [booth.label]),
-          el("div", { class: "text-secondary small" }, [booth.location]),
-        ]),
+        el("div", {}, [el("div", { class: "fw-bold" }, [booth.label]), el("div", { class: "text-secondary small" }, [booth.location])]),
         healthBadge(booth.health),
       ]),
-      indicatorChips(booth),
-      el("div", { class: "row mt-3 text-secondary small" }, [
+      el("div", { class: "d-flex align-items-center justify-content-between mb-2" }, [indicatorChips(booth), connectionBadge(booth)]),
+      el("div", { class: "row text-secondary small" }, [
         el("div", { class: "col" }, [`${booth.sessionsToday} sessions`]),
         el("div", { class: "col text-end" }, [relativeTime(booth.lastHeartbeatAt)]),
       ]),
@@ -129,13 +141,56 @@ export function boothCard(booth: Booth, onOpen: (id: string) => void): HTMLEleme
   return card;
 }
 
-// ── Tableau des cabines ───────────────────────────────────────────────────────
-export function boothTable(booths: readonly Booth[], onOpen: (id: string) => void): HTMLElement {
+// ── Tableau des cabines (triable) ─────────────────────────────────────────────
+export type SortKey = "label" | "health" | "connection" | "sessions" | "revenue" | "version" | "heartbeat";
+export interface SortState {
+  readonly key: SortKey;
+  readonly dir: "asc" | "desc";
+}
+
+const HEALTH_ORDER: Readonly<Record<HealthStatus, number>> = { error: 0, offline: 1, attention: 2, maintenance: 3, operational: 4 };
+
+export function sortBooths(booths: readonly Booth[], sort: SortState): Booth[] {
+  const dir = sort.dir === "asc" ? 1 : -1;
+  const val = (b: Booth): number | string => {
+    switch (sort.key) {
+      case "label": return b.label.toLowerCase();
+      case "health": return HEALTH_ORDER[b.health];
+      case "connection": return b.telemetry.connection;
+      case "sessions": return b.sessionsToday;
+      case "revenue": return b.revenueTodayCents;
+      case "version": return b.softwareVersion;
+      case "heartbeat": return b.lastHeartbeatAt;
+    }
+  };
+  return [...booths].sort((a, b) => {
+    const va = val(a);
+    const vb = val(b);
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return 0;
+  });
+}
+
+export function boothTable(
+  booths: readonly Booth[],
+  sort: SortState,
+  onSort: (key: SortKey) => void,
+  onOpen: (id: string) => void,
+): HTMLElement {
+  const header = (key: SortKey, label: string): HTMLElement => {
+    const active = sort.key === key;
+    const arrow = active ? (sort.dir === "asc" ? " ↑" : " ↓") : "";
+    const th = el("th", { class: `cursor-pointer user-select-none ${active ? "text-primary" : ""}` }, [`${label}${arrow}`]);
+    th.addEventListener("click", () => onSort(key));
+    return th;
+  };
+
   const rows = booths.map((b) => {
     const tr = el("tr", { class: "cursor-pointer" }, [
       el("td", {}, [el("div", { class: "fw-bold" }, [b.label]), el("div", { class: "text-secondary small" }, [b.location])]),
       el("td", {}, [healthBadge(b.health)]),
-      el("td", {}, [indicatorChips(b)]),
+      el("td", {}, [connectionBadge(b)]),
       el("td", { class: "text-secondary" }, [String(b.sessionsToday)]),
       el("td", { class: "text-secondary" }, [formatMoney(b.revenueTodayCents)]),
       el("td", { class: "text-secondary" }, [b.softwareVersion]),
@@ -151,13 +206,13 @@ export function boothTable(booths: readonly Booth[], onOpen: (id: string) => voi
       el("table", { class: "table table-vcenter card-table table-hover" }, [
         el("thead", {}, [
           el("tr", {}, [
-            el("th", {}, ["Cabine"]),
-            el("th", {}, ["Santé"]),
-            el("th", {}, ["Indicateurs"]),
-            el("th", {}, ["Sessions"]),
-            el("th", {}, ["Revenu"]),
-            el("th", {}, ["Version"]),
-            el("th", {}, ["Vu"]),
+            header("label", "Cabine"),
+            header("health", "Santé"),
+            header("connection", "Connexion"),
+            header("sessions", "Sessions"),
+            header("revenue", "Revenu"),
+            header("version", "Version"),
+            header("heartbeat", "Vu"),
           ]),
         ]),
         el("tbody", {}, rows),

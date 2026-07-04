@@ -24,6 +24,16 @@ export type BoothIndicator = "powered" | "in_use" | "updating";
 /** Rôle de l'utilisateur du back-office. */
 export type Role = "operator" | "bar_manager";
 
+/** Type de connexion réseau de la cabine. */
+export type ConnectionType = "wifi" | "lte";
+
+/** Point d'historique journalier (pour les graphes du détail cabine). */
+export interface DailyStat {
+  readonly date: string; // ISO "YYYY-MM-DD"
+  readonly sessions: number;
+  readonly bandwidthMb: number;
+}
+
 /** Ligne de journal / événement d'une cabine (vue debug, opérateur only). */
 export interface BoothLog {
   readonly at: number; // epoch ms
@@ -38,6 +48,10 @@ export interface BoothTelemetry {
   readonly storageFreePct: number; // 0..100
   readonly cpuLoadPct: number; // 0..100
   readonly currentFilmTitle: string | null; // si in_use
+  /** Type de connexion réseau. */
+  readonly connection: ConnectionType;
+  /** Qualité du signal 0..100 (barres). */
+  readonly signalPct: number;
 }
 
 export interface Booth {
@@ -52,6 +66,8 @@ export interface Booth {
   revenueTodayCents: number;
   telemetry: BoothTelemetry;
   logs: BoothLog[];
+  /** Historique journalier (sessions + bande passante) pour les graphes. */
+  history: readonly DailyStat[];
   /** Propriétaire/gérant — un gérant de bar ne voit que ses cabines. */
   ownerId: string;
   notes: string;

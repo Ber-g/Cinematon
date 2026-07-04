@@ -1,4 +1,4 @@
-import type { BoothIndicator, HealthStatus } from "./types";
+import type { BoothIndicator, ConnectionType, HealthStatus } from "./types";
 
 // Vocabulaire de statut (@design). Chaque statut de santé porte : un libellé
 // clair, une couleur sémantique Tabler (déjà accessible AA), et une icône —
@@ -47,4 +47,19 @@ const INDICATOR_LABEL: Readonly<Record<BoothIndicator, string>> = {
 
 export function indicatorLabel(ind: BoothIndicator): string {
   return INDICATOR_LABEL[ind];
+}
+
+// Connexion réseau : libellé + icône (Wifi ondulé / antenne LTE).
+export interface ConnectionMeta {
+  readonly label: string;
+  readonly iconPath: string;
+}
+
+const CONNECTION_META: Readonly<Record<ConnectionType, ConnectionMeta>> = {
+  wifi: { label: "Wi-Fi", iconPath: "M12 18h.01M5 12a10 10 0 0 1 14 0M8.5 15a6 6 0 0 1 7 0M2 9a15 15 0 0 1 20 0" },
+  lte: { label: "LTE (4G)", iconPath: "M6 18v-6M10 18v-9M14 18v-4M18 18v-11M3 21h18" },
+};
+
+export function connectionMeta(type: ConnectionType): ConnectionMeta {
+  return CONNECTION_META[type];
 }
