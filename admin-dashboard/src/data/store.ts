@@ -1,7 +1,8 @@
-import type { Booth, CurrentIdentity, OrgRole, User } from "../domain/types";
-import { MOCK_BOOTHS, MOCK_MEMBERSHIPS, MOCK_USERS } from "./mockFleet";
+import type { Booth, CurrentIdentity, Media, OrgRole, User } from "../domain/types";
+import { MOCK_BOOTHS, MOCK_MEMBERSHIPS, MOCK_ORGS, MOCK_USERS } from "./mockFleet";
 import { isSupabaseConfigured, supabase } from "./supabase";
-import { boothToRow, rowToBooth } from "./mappers";
+import { boothToRow, mediaToRow, rowToBooth, rowToMedia } from "./mappers";
+import { sha256Hex } from "./hash";
 
 // Store = cache en mémoire + couche d'accès aux données. Deux modes :
 // - `mock`     : données factices + localStorage (sans backend).
@@ -26,6 +27,8 @@ function mockIdentityFor(userId: string): CurrentIdentity {
 export class FleetStore {
   readonly mode: "mock" | "supabase" = isSupabaseConfigured ? "supabase" : "mock";
   private booths: Booth[] = [];
+  private media: Media[] = [];
+  private orgs: Array<{ id: string; name: string }> = [];
   private identity: CurrentIdentity | null = null;
   private authed = false;
   private listeners = new Set<Listener>();
@@ -41,6 +44,7 @@ export class FleetStore {
   async init(): Promise<void> {
     if (this.mode === "mock") {
       this.booths = this.loadMockBooths();
+      this.orgs = MOCK_ORGS.map((o) => ({ id: o.id, name: o.name }));
       this.identity = mockIdentityFor(localStorage.getItem(LS_IDENTITY) ?? "user-admin");
       this.authed = true;
       this.emit();
@@ -87,9 +91,13 @@ export class FleetStore {
       activeOrganizationId: isGlobal ? null : (first?.organization_id ?? null),
       role: isGlobal ? null : ((first?.role as OrgRole) ?? null),
     };
-    // Cabines : la RLS scope déjà par organisation → on charge tel quel.
+    // Cabines + médias : la RLS scope déjà par organisation → on charge tel quel.
     const { data: booths } = await supabase!.from("booths").select("*");
     this.booths = (booths ?? []).map(rowToBooth);
+    const { data: media } = await supabase!.from("media").select("*");
+    this.media = (media ?? []).map(rowToMedia);
+    const { data: orgs } = await supabase!.from("organizations").select("id,name");
+    this.orgs = (orgs ?? []) as Array<{ id: string; name: string }>;
     await this.enrichBooths();
     this.authed = true;
     this.emit();
@@ -191,6 +199,73 @@ export class FleetStore {
         if (error) console.error("deleteBooth:", error.message);
       });
     }
+  }
+
+  // ── Médias ──────────────────────────────────────────────────────────────────
+  mediaList(): Media[] {
+    return [...this.media];
+  }
+  organizations(): Array<{ id: string; name: string }> {
+    return [...this.orgs];
+  }
+
+  /**
+   * Ajoute un média. Si un fichier est fourni, calcule son SHA-256 (dedup +
+   * intégrité) et le téléverse (Supabase Storage). Le doublon est refusé par la
+   * base (`unique(organization_id, content_hash)`) → message clair.
+   */
+  async addMedia(input: Media, file: File | null): Promise<{ ok: boolean; error?: string }> {
+    const contentHash = file ? await sha256Hex(file) : input.contentHash;
+
+    if (this.mode === "mock") {
+      if (this.media.some((m) => m.organizationId === input.organizationId && m.contentHash === contentHash)) {
+        return { ok: false, error: "Doublon : ce fichier existe déjà dans cette organisation." };
+      }
+      this.media.push({ ...input, contentHash });
+      this.emit();
+      return { ok: true };
+    }
+
+    let storageUrl = input.storageUrl;
+    if (file) {
+      const path = `${input.organizationId}/${contentHash}`;
+      const up = await supabase!.storage.from("media").upload(path, file, { upsert: false });
+      if (up.error && !/already exists/i.test(up.error.message)) {
+        return { ok: false, error: `Téléversement échoué : ${up.error.message}` };
+      }
+      storageUrl = path;
+    }
+
+    const { error } = await supabase!.from("media").insert(mediaToRow({ ...input, contentHash, storageUrl }));
+    if (error) {
+      if (error.code === "23505") return { ok: false, error: "Doublon : ce fichier existe déjà dans cette organisation." };
+      return { ok: false, error: error.message };
+    }
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  async updateMedia(m: Media): Promise<void> {
+    if (this.mode === "mock") {
+      const i = this.media.findIndex((x) => x.id === m.id);
+      if (i >= 0) this.media[i] = m;
+      this.emit();
+      return;
+    }
+    const { error } = await supabase!.from("media").update(mediaToRow(m)).eq("id", m.id);
+    if (error) console.error("updateMedia:", error.message);
+    else await this.loadFromSupabase();
+  }
+
+  async deleteMedia(id: string): Promise<void> {
+    if (this.mode === "mock") {
+      this.media = this.media.filter((m) => m.id !== id);
+      this.emit();
+      return;
+    }
+    const { error } = await supabase!.from("media").delete().eq("id", id);
+    if (error) console.error("deleteMedia:", error.message);
+    else await this.loadFromSupabase();
   }
 
   // ── Disposition des widgets ─────────────────────────────────────────────────

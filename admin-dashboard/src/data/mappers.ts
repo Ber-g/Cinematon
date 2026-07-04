@@ -1,4 +1,4 @@
-import type { Booth, BoothTelemetry } from "../domain/types";
+import type { Booth, BoothTelemetry, Media } from "../domain/types";
 
 // Conversion entre les lignes Postgres (snake_case) et le modèle de domaine
 // (camelCase). Les agrégats (sessions/revenu/historique/logs du jour) viennent de
@@ -51,6 +51,78 @@ export function rowToBooth(row: BoothRow): Booth {
     revenueTodayCents: 0,
     history: [],
     logs: [],
+  };
+}
+
+// ── Médias ───────────────────────────────────────────────────────────────────
+interface MediaRow {
+  id: string;
+  organization_id: string;
+  content_hash: string;
+  title: string;
+  year: number | null;
+  duration_seconds: number;
+  storage_url: string | null;
+  version: number;
+  active: boolean;
+  tmdb_id: number | null;
+  genres: string[] | null;
+  moods: string[] | null;
+  tags: string[] | null;
+  audience_tags: string[] | null;
+  language: string;
+  director: string;
+  synopsis: string;
+  stills: string[] | null;
+  learn_more_url: string | null;
+}
+
+export function rowToMedia(row: MediaRow): Media {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    contentHash: row.content_hash,
+    title: row.title,
+    year: row.year ?? 0,
+    durationSeconds: row.duration_seconds,
+    storageUrl: row.storage_url,
+    version: row.version,
+    active: row.active,
+    tmdbId: row.tmdb_id,
+    genres: row.genres ?? [],
+    moods: row.moods ?? [],
+    tags: row.tags ?? [],
+    audienceTags: row.audience_tags ?? [],
+    language: row.language,
+    subtitles: [],
+    director: row.director,
+    synopsis: row.synopsis,
+    stills: row.stills ?? [],
+    learnMoreUrl: row.learn_more_url,
+  };
+}
+
+export function mediaToRow(m: Media): Record<string, unknown> {
+  return {
+    id: m.id,
+    organization_id: m.organizationId,
+    content_hash: m.contentHash,
+    title: m.title,
+    year: m.year,
+    duration_seconds: m.durationSeconds,
+    storage_url: m.storageUrl,
+    version: m.version,
+    active: m.active,
+    tmdb_id: m.tmdbId,
+    genres: m.genres,
+    moods: m.moods,
+    tags: m.tags,
+    audience_tags: m.audienceTags,
+    language: m.language,
+    director: m.director,
+    synopsis: m.synopsis,
+    stills: m.stills,
+    learn_more_url: m.learnMoreUrl,
   };
 }
 

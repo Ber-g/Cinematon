@@ -7,6 +7,7 @@ import type { Kpi, SortKey, SortState } from "./components";
 import { boothCard, boothTable, computeKpis, kpiTile, sortBooths, statusDistribution } from "./components";
 import { openBoothDrawer, openBoothForm } from "./drawer";
 import { loginScreen } from "./login";
+import { mediaPage } from "./media";
 
 const THEME_KEY = "cinematon.admin.theme.v1";
 
@@ -23,6 +24,7 @@ export class App {
   private editing = false;
   private filter: FilterState | null = null;
   private sort: SortState = { key: "health", dir: "asc" };
+  private view: "overview" | "media" = "overview";
 
   constructor(
     private readonly root: HTMLElement,
@@ -48,16 +50,22 @@ export class App {
       this.root.replaceChildren(el("div", { class: "page page-center" }, [el("div", { class: "text-secondary p-5" }, ["Chargement…"])]));
       return;
     }
+    const page = this.view === "media" ? mediaPage(this.store, () => this.render()) : this.overview();
     this.root.replaceChildren(
       this.sidebar(),
       this.topbar(),
       el("div", { class: "page-wrapper" }, [
-        el("div", { class: `page-body ${this.filter ? `is-filtered filtered-${this.filter.color}` : ""}` }, [
-          el("div", { class: "container-xl" }, [this.overview()]),
+        el("div", { class: `page-body ${this.view === "overview" && this.filter ? `is-filtered filtered-${this.filter.color}` : ""}` }, [
+          el("div", { class: "container-xl" }, [page]),
         ]),
       ]),
     );
-    this.mountGrid();
+    if (this.view === "overview") this.mountGrid();
+  }
+
+  private setView(v: "overview" | "media"): void {
+    this.view = v;
+    this.render();
   }
 
   /** Cabines visibles → filtrées → triées. */
@@ -79,8 +87,8 @@ export class App {
         el("h1", { class: "navbar-brand fs-2 fw-bold m-0" }, ["CINEMATON"]),
         el("div", { class: "collapse navbar-collapse", id: "sidebar-menu" }, [
           el("ul", { class: "navbar-nav pt-lg-2 w-100" }, [
-            navItem("Vue d'ensemble", "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", true),
-            navItem("Cabines", "M4 21v-13l8 -4l8 4v13", false),
+            navItem("Vue d'ensemble", "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
+            navItem("Médias", "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", this.view === "media", () => this.setView("media")),
             navItem("Sessions", "M8 4v16M16 4v16M4 8h16M4 16h16", false),
             navItem("Réglages", "M12 15a3 3 0 1 0 0 -6a3 3 0 0 0 0 6z", false),
           ]),
@@ -270,13 +278,18 @@ export class App {
 }
 
 // ── Helpers de navigation ────────────────────────────────────────────────────
-function navItem(label: string, path: string, active: boolean): HTMLElement {
-  return el("li", { class: "nav-item" }, [
-    el("a", { class: `nav-link ${active ? "active" : ""}`, href: "#" }, [
-      el("span", { class: "nav-link-icon" }, [icon(path, 20)]),
-      el("span", { class: "nav-link-title" }, [label]),
-    ]),
+function navItem(label: string, path: string, active: boolean, onClick?: () => void): HTMLElement {
+  const link = el("a", { class: `nav-link ${active ? "active" : ""}`, href: "#" }, [
+    el("span", { class: "nav-link-icon" }, [icon(path, 20)]),
+    el("span", { class: "nav-link-title" }, [label]),
   ]);
+  if (onClick) {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      onClick();
+    });
+  }
+  return el("li", { class: "nav-item" }, [link]);
 }
 
 function identityOption(label: string, userId: string, currentUserId: string, onPick: (u: string) => void): HTMLElement {
