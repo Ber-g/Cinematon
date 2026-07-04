@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cinematon/domain": "*",
+    "@supabase/supabase-js": "^2.45.4",
     "@tabler/core": "^1.0.0",
     "bootstrap": "^5.3.3",
     "gridstack": "^11.1.2"

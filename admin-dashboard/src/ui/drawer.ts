@@ -178,7 +178,7 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       logs: [],
       history: [],
       // Nouvelle cabine rattachée à l'org active (global_admin → org par défaut).
-      organizationId: store.current.activeOrganizationId ?? "org-perchoir",
+      organizationId: store.current?.activeOrganizationId ?? "org-perchoir",
       address: "",
       gpsLat: null,
       gpsLng: null,

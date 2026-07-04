@@ -6,6 +6,7 @@ import { el, icon } from "./dom";
 import type { Kpi, SortKey, SortState } from "./components";
 import { boothCard, boothTable, computeKpis, kpiTile, sortBooths, statusDistribution } from "./components";
 import { openBoothDrawer, openBoothForm } from "./drawer";
+import { loginScreen } from "./login";
 
 const THEME_KEY = "cinematon.admin.theme.v1";
 
@@ -31,7 +32,22 @@ export class App {
     this.applyStoredTheme();
   }
 
+  /** Point d'entrée : lance le chargement (async) puis rend. */
+  start(): void {
+    this.render();
+    void this.store.init();
+  }
+
   render(): void {
+    // Mode Supabase : connexion requise, ou chargement en cours.
+    if (this.store.needsAuth) {
+      this.root.replaceChildren(loginScreen(this.store));
+      return;
+    }
+    if (!this.store.current) {
+      this.root.replaceChildren(el("div", { class: "page page-center" }, [el("div", { class: "text-secondary p-5" }, ["Chargement…"])]));
+      return;
+    }
     this.root.replaceChildren(
       this.sidebar(),
       this.topbar(),
@@ -75,17 +91,27 @@ export class App {
 
   // ── Barre du haut ─────────────────────────────────────────────────────────
   private topbar(): HTMLElement {
-    const identity = this.store.current;
+    const identity = this.store.current!;
     const roleLabel = this.store.isGlobalAdmin ? "global_admin" : (identity.role ?? "—");
 
     const roleBtn = el("button", { class: "btn dropdown-toggle", type: "button", "data-bs-toggle": "dropdown" }, [
       icon("M12 12a4 4 0 1 0 0 -8a4 4 0 0 0 0 8zM6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2", 18),
-      el("span", { class: "d-none d-sm-inline" }, [`${identity.user.name} · ${roleLabel}`]),
+      el("span", { class: "d-none d-sm-inline" }, [`${identity.user.name || identity.user.email} · ${roleLabel}`]),
     ]);
-    const roleMenu = el("div", { class: "dropdown-menu dropdown-menu-end" }, [
-      identityOption("Admin — global_admin (tout + debug)", "user-admin", identity.user.id, (u) => this.store.switchUser(u)),
-      identityOption("Camille — super_user Le Perchoir (sans debug)", "user-camille", identity.user.id, (u) => this.store.switchUser(u)),
-    ]);
+    // Mode mock : bascule d'identité de démo. Mode supabase : déconnexion.
+    const roleMenu =
+      this.store.mode === "mock"
+        ? el("div", { class: "dropdown-menu dropdown-menu-end" }, [
+            identityOption("Admin — global_admin (tout + debug)", "user-admin", identity.user.id, (u) => this.store.switchUser(u)),
+            identityOption("Camille — super_user Le Perchoir (sans debug)", "user-camille", identity.user.id, (u) => this.store.switchUser(u)),
+          ])
+        : el("div", { class: "dropdown-menu dropdown-menu-end" }, [
+            (() => {
+              const b = el("button", { class: "dropdown-item", type: "button" }, ["Se déconnecter"]);
+              b.addEventListener("click", () => void this.store.signOut());
+              return b;
+            })(),
+          ]);
 
     const themeBtn = el("button", { class: "btn btn-icon", type: "button", title: "Basculer clair/sombre" }, [
       icon("M12 3a6 6 0 0 0 0 12a6 6 0 0 0 0 -12zM12 3v0M12 21v-3M3 12h3M18 12h3", 18),

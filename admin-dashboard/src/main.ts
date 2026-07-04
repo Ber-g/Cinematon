@@ -16,4 +16,4 @@ if (!root) throw new Error("Élément #app introuvable");
 
 const store = new FleetStore();
 const app = new App(root, store);
-app.render();
+app.start(); // rend + lance le chargement async (mock ou Supabase)
