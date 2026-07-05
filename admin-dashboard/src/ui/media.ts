@@ -2,27 +2,69 @@ import { Modal } from "bootstrap";
 import type { Media } from "../domain/types";
 import type { FleetStore } from "../data/store";
 import { sha256Hex } from "../data/hash";
+import { openPreview } from "./preview";
 import { el } from "./dom";
 
 // Page de gestion des médias (F8) + modale d'ajout/édition. CRUD sur Supabase,
 // hachage SHA-256 côté client, anti-doublons imposé par la base, filtrage par
-// tags d'audience, indication de conformité à la whitelist de l'organisation.
+// tags d'audience, dashboard de lecture (top 10), et envoi batch vers plusieurs
+// cabines en une action (crée des `media_instances`).
 
 function formatDuration(seconds: number): string {
   const m = Math.round(seconds / 60);
   return m > 0 ? `${m} min` : `${seconds}s`;
 }
 
+/** Durée cumulée lisible : "3 h 12 min", "45 min", "0 min". */
+function formatPlaytime(seconds: number): string {
+  const totalMin = Math.round(seconds / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min`;
+}
+
+/** Signal sous-titres : un badge par langue (vert = calé/vérifié, ambre = à retravailler). */
+function subtitleCell(store: FleetStore, m: Media): HTMLElement {
+  const subs = store.subtitlesFor(m.id);
+  if (subs.length === 0) return el("span", { class: "text-secondary" }, ["—"]);
+  return el(
+    "span",
+    { class: "d-inline-flex flex-wrap gap-1" },
+    subs.map((s) => {
+      const verified = s.workflowStatus === "verified";
+      return el(
+        "span",
+        { class: `badge ${verified ? "bg-green-lt" : "bg-yellow-lt"}`, title: verified ? "Sous-titres présents et calés (vérifiés)" : "Sous-titres à retravailler" },
+        [`${s.lang.toUpperCase()}${verified ? " ✓" : ""}`],
+      );
+    }),
+  );
+}
+
+/** Signal vidéo : validée par l'opérateur / à valider / pas de fichier. */
+function videoStatusCell(m: Media): HTMLElement {
+  if (!m.storageUrl) return el("span", { class: "badge bg-secondary-lt", title: "Aucun fichier vidéo" }, ["—"]);
+  if (m.reviewedAt) {
+    return el("span", { class: "badge bg-green-lt", title: `Validée le ${new Date(m.reviewedAt).toLocaleDateString("fr-FR")}` }, ["✓ Validée"]);
+  }
+  return el("span", { class: "badge bg-yellow-lt", title: "À valider par l'opérateur (via l'aperçu)" }, ["À valider"]);
+}
+
 export function mediaPage(store: FleetStore, onChanged: () => void): HTMLElement {
   const all = store.mediaList();
 
-  // Filtre par tag d'audience.
+  // Filtre par tag d'audience + sélection multiple (pour l'envoi batch).
   const tagSet = new Set<string>();
   for (const m of all) for (const t of m.audienceTags) tagSet.add(t);
-  const state = { tag: null as string | null };
+  const state = { tag: null as string | null, selected: new Set<string>() };
+
+  const container = el("div", {}, []);
 
   const render = (): HTMLElement => {
     const list = state.tag ? all.filter((m) => m.audienceTags.includes(state.tag!)) : all;
+    // La sélection ne porte que sur les médias visibles (filtrés).
+    const visibleIds = new Set(list.map((m) => m.id));
+    for (const id of [...state.selected]) if (!visibleIds.has(id)) state.selected.delete(id);
 
     const chips = [...tagSet].sort().map((t) => {
       const b = el("button", { class: `chip ${state.tag === t ? "chip--on" : ""}`, type: "button" }, [t]);
@@ -33,33 +75,81 @@ export function mediaPage(store: FleetStore, onChanged: () => void): HTMLElement
       return b;
     });
 
+    const selectAll = el("input", { class: "form-check-input m-0", type: "checkbox", "aria-label": "Tout sélectionner" }) as HTMLInputElement;
+    selectAll.checked = list.length > 0 && list.every((m) => state.selected.has(m.id));
+    selectAll.addEventListener("change", () => {
+      if (selectAll.checked) for (const m of list) state.selected.add(m.id);
+      else state.selected.clear();
+      container.replaceChildren(render());
+    });
+
     const rows = list.map((m) => {
-      const tr = el("tr", {}, [
+      const check = el("input", { class: "form-check-input m-0", type: "checkbox", "aria-label": `Sélectionner ${m.title}` }) as HTMLInputElement;
+      check.checked = state.selected.has(m.id);
+      check.addEventListener("change", () => {
+        if (check.checked) state.selected.add(m.id);
+        else state.selected.delete(m.id);
+        container.replaceChildren(render());
+      });
+      const boothCount = store.boothIdsForMedia(m.id).size;
+      const coverage =
+        boothCount > 0
+          ? el("span", { class: "badge bg-green-lt" }, [`${boothCount} cabine${boothCount > 1 ? "s" : ""}`])
+          : el("span", { class: "badge bg-secondary-lt", title: "Présent sur aucune cabine" }, ["—"]);
+
+      return el("tr", {}, [
+        el("td", {}, [check]),
         el("td", {}, [el("div", { class: "fw-bold" }, [m.title]), el("div", { class: "text-secondary small" }, [`${m.director || "—"} · ${m.year || "—"}`])]),
         el("td", { class: "text-secondary" }, [formatDuration(m.durationSeconds)]),
         el("td", { class: "text-secondary" }, [m.language.toUpperCase()]),
         el("td", {}, [el("span", { class: "d-inline-flex flex-wrap gap-1" }, m.audienceTags.map((t) => el("span", { class: "badge bg-secondary-lt" }, [t])))]),
-        el("td", { class: "text-secondary text-nowrap" }, [m.contentHash.slice(0, 10) + "…"]),
+        el("td", {}, [subtitleCell(store, m)]),
+        el("td", {}, [videoStatusCell(m)]),
+        el("td", {}, [coverage]),
+        el("td", { class: "text-secondary text-nowrap" }, [m.contentHash ? m.contentHash.slice(0, 10) + "…" : "—"]),
         el("td", { class: "text-end" }, [rowActions(store, m, onChanged)]),
       ]);
-      return tr;
     });
 
     const add = el("button", { class: "btn btn-primary", type: "button" }, ["Ajouter un média"]);
     add.addEventListener("click", () => openMediaForm(store, null, onChanged));
 
+    const selCount = state.selected.size;
+    const send = el(
+      "button",
+      { class: "btn btn-outline-primary", type: "button", ...(selCount === 0 ? { disabled: "true" } : {}) },
+      [selCount === 0 ? "Envoyer vers des cabines" : `Envoyer ${selCount} média${selCount > 1 ? "s" : ""} →`],
+    );
+    send.addEventListener("click", () => {
+      if (selCount > 0) openBatchModal(store, [...state.selected], onChanged);
+    });
+
     return el("div", {}, [
-      el("div", { class: "d-flex align-items-center justify-content-between mb-3" }, [
+      el("div", { class: "d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap" }, [
         el("div", {}, [el("h2", { class: "page-title m-0" }, ["Médias"]), el("div", { class: "text-secondary" }, [`${all.length} média(s)`])]),
-        add,
+        el("div", { class: "btn-list" }, [send, add]),
       ]),
+      statsPanel(store),
       tagSet.size > 0 ? el("div", { class: "chips mb-3" }, chips) : el("span", {}, []),
       list.length === 0
         ? el("div", { class: "card" }, [el("div", { class: "card-body text-secondary text-center py-5" }, ["Aucun média. Cliquez sur « Ajouter un média »."])])
         : el("div", { class: "card" }, [
             el("div", { class: "table-responsive" }, [
               el("table", { class: "table table-vcenter card-table" }, [
-                el("thead", {}, [el("tr", {}, [el("th", {}, ["Titre"]), el("th", {}, ["Durée"]), el("th", {}, ["Langue"]), el("th", {}, ["Tags d'audience"]), el("th", {}, ["Empreinte"]), el("th", {}, [])])]),
+                el("thead", {}, [
+                  el("tr", {}, [
+                    el("th", { class: "w-1" }, [selectAll]),
+                    el("th", {}, ["Titre"]),
+                    el("th", {}, ["Durée"]),
+                    el("th", {}, ["Langue"]),
+                    el("th", {}, ["Tags d'audience"]),
+                    el("th", {}, ["Sous-titres"]),
+                    el("th", {}, ["Vidéo"]),
+                    el("th", {}, ["Cabines"]),
+                    el("th", {}, ["Empreinte"]),
+                    el("th", {}, []),
+                  ]),
+                ]),
                 el("tbody", {}, rows),
               ]),
             ]),
@@ -67,18 +157,150 @@ export function mediaPage(store: FleetStore, onChanged: () => void): HTMLElement
     ]);
   };
 
-  const container = el("div", {}, [render()]);
+  container.replaceChildren(render());
   return container;
 }
 
+// ── Panneau statistiques de lecture (top 10) ─────────────────────────────────
+function statsPanel(store: FleetStore): HTMLElement {
+  const tile = (label: string, value: string): HTMLElement =>
+    el("div", { class: "col-6 col-md-3" }, [
+      el("div", { class: "card card-sm" }, [
+        el("div", { class: "card-body" }, [
+          el("div", { class: "text-secondary small text-uppercase" }, [label]),
+          el("div", { class: "h2 m-0" }, [value]),
+        ]),
+      ]),
+    ]);
+
+  const kpis = el("div", { class: "row g-2 mb-2" }, [tile("Lectures totales", "…"), tile("Durée de lecture", "…")]);
+  const topWrap = el("div", { class: "card mb-3" }, [
+    el("div", { class: "card-body text-secondary" }, ["Chargement des statistiques de lecture…"]),
+  ]);
+
+  void store.mediaStats().then((s) => {
+    kpis.replaceChildren(tile("Lectures totales", String(s.totalPlays)), tile("Durée de lecture", formatPlaytime(s.totalSeconds)));
+    if (s.top.length === 0) {
+      topWrap.replaceChildren(
+        el("div", { class: "card-body text-secondary" }, ["Aucune lecture enregistrée pour l'instant (les cabines n'ont pas encore remonté de sessions)."]),
+      );
+      return;
+    }
+    const maxPlays = s.top[0]?.plays ?? 1;
+    const rows = s.top.map((t, i) =>
+      el("tr", {}, [
+        el("td", { class: "text-secondary" }, [String(i + 1)]),
+        el("td", { class: "fw-bold" }, [t.title]),
+        el("td", { class: "text-end" }, [String(t.plays)]),
+        el("td", { class: "text-end text-secondary" }, [formatPlaytime(t.playSeconds)]),
+        el("td", { class: "w-50" }, [
+          el("div", { class: "progress progress-sm" }, [
+            el("div", { class: "progress-bar", style: `width:${Math.round((t.plays / maxPlays) * 100)}%`, role: "progressbar" }, []),
+          ]),
+        ]),
+      ]),
+    );
+    topWrap.replaceChildren(
+      el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["Top 10 des médias les plus lus"])]),
+      el("div", { class: "table-responsive" }, [
+        el("table", { class: "table table-vcenter card-table" }, [
+          el("thead", {}, [el("tr", {}, [el("th", { class: "w-1" }, ["#"]), el("th", {}, ["Titre"]), el("th", { class: "text-end" }, ["Lectures"]), el("th", { class: "text-end" }, ["Durée"]), el("th", {}, [])])]),
+          el("tbody", {}, rows),
+        ]),
+      ]),
+    );
+  });
+
+  return el("div", {}, [kpis, topWrap]);
+}
+
 function rowActions(store: FleetStore, m: Media, onChanged: () => void): HTMLElement {
-  const edit = el("button", { class: "btn btn-sm", type: "button" }, ["Modifier"]);
+  const preview = el("button", { class: "btn btn-sm", type: "button" }, ["Aperçu"]);
+  preview.addEventListener("click", () => openPreview(store, m, onChanged));
+  const edit = el("button", { class: "btn btn-sm ms-1", type: "button" }, ["Modifier"]);
   edit.addEventListener("click", () => openMediaForm(store, m, onChanged));
   const del = el("button", { class: "btn btn-sm btn-outline-danger ms-1", type: "button" }, ["Suppr."]);
   del.addEventListener("click", () => {
     if (confirm(`Supprimer « ${m.title} » ?`)) void store.deleteMedia(m.id).then(onChanged);
   });
-  return el("span", { class: "btn-list justify-content-end" }, [edit, del]);
+  return el("span", { class: "btn-list justify-content-end" }, [preview, edit, del]);
+}
+
+// ── Modale d'envoi batch vers des cabines ────────────────────────────────────
+function openBatchModal(store: FleetStore, mediaIds: string[], onChanged: () => void): void {
+  const titles = mediaIds
+    .map((id) => store.mediaList().find((m) => m.id === id)?.title ?? "—")
+    .slice(0, 5);
+  const summary = mediaIds.length > 5 ? `${titles.join(", ")}… (+${mediaIds.length - 5})` : titles.join(", ");
+
+  // Cibles possibles = cabines de l'organisation des médias sélectionnés (la RLS
+  // garantit déjà qu'on ne voit que les siennes).
+  const orgIds = new Set(mediaIds.map((id) => store.mediaList().find((m) => m.id === id)?.organizationId));
+  const booths = store.visibleBooths().filter((b) => orgIds.has(b.organizationId));
+
+  const checks = new Map<string, HTMLInputElement>();
+  const boothRows = booths.map((b) => {
+    const cb = el("input", { class: "form-check-input", type: "checkbox", id: `booth-${b.id}` }) as HTMLInputElement;
+    checks.set(b.id, cb);
+    return el("label", { class: "list-group-item d-flex align-items-center gap-2", for: `booth-${b.id}` }, [
+      cb,
+      el("span", { class: "flex-fill" }, [el("div", { class: "fw-bold" }, [b.label]), el("div", { class: "text-secondary small" }, [b.location || b.address || "—"])]),
+    ]);
+  });
+
+  const error = el("div", { class: "alert alert-danger d-none" }, []);
+  const feedback = el("div", { class: "text-secondary small" }, [`${mediaIds.length} média(s) : ${summary}`]);
+  const confirm = el("button", { class: "btn btn-primary ms-auto", type: "button" }, ["Envoyer"]);
+
+  const bodyContent =
+    booths.length === 0
+      ? el("div", { class: "text-secondary text-center py-4" }, ["Aucune cabine disponible pour cette organisation."])
+      : el("div", { class: "list-group list-group-flush" }, boothRows);
+
+  const modalEl = el("div", { class: "modal modal-blur fade", tabindex: "-1" }, [
+    el("div", { class: "modal-dialog modal-dialog-centered" }, [
+      el("div", { class: "modal-content" }, [
+        el("div", { class: "modal-header" }, [
+          el("h3", { class: "modal-title" }, ["Envoyer vers des cabines"]),
+          el("button", { class: "btn-close", type: "button", "data-bs-dismiss": "modal" }, []),
+        ]),
+        el("div", { class: "modal-body" }, [feedback, error, bodyContent]),
+        el("div", { class: "modal-footer" }, [el("button", { class: "btn", type: "button", "data-bs-dismiss": "modal" }, ["Annuler"]), confirm]),
+      ]),
+    ]),
+  ]);
+  document.body.append(modalEl);
+  const modal = new Modal(modalEl);
+
+  confirm.addEventListener("click", () => {
+    error.classList.add("d-none");
+    const boothIds = [...checks.entries()].filter(([, cb]) => cb.checked).map(([id]) => id);
+    if (boothIds.length === 0) {
+      error.textContent = "Sélectionnez au moins une cabine.";
+      error.classList.remove("d-none");
+      return;
+    }
+    confirm.setAttribute("disabled", "true");
+    confirm.textContent = "Envoi…";
+    void store.sendMediaToBooths(mediaIds, boothIds).then((res) => {
+      if (!res.ok) {
+        error.textContent = res.error ?? "Échec de l'envoi.";
+        error.classList.remove("d-none");
+        confirm.removeAttribute("disabled");
+        confirm.textContent = "Envoyer";
+        return;
+      }
+      modal.hide();
+      const parts = [`${res.created} présence(s) créée(s)`];
+      if (res.skipped > 0) parts.push(`${res.skipped} déjà présente(s)`);
+      if (res.boothsWithoutStorage > 0) parts.push(`${res.boothsWithoutStorage} cabine(s) sans support connu`);
+      console.info("[media] envoi batch :", parts.join(" · "));
+      onChanged();
+    });
+  });
+
+  modalEl.addEventListener("hidden.bs.modal", () => modalEl.remove(), { once: true });
+  modal.show();
 }
 
 // ── Modale d'ajout / édition ─────────────────────────────────────────────────
@@ -111,6 +333,8 @@ export function openMediaForm(store: FleetStore, existing: Media | null, onChang
       synopsis: "",
       stills: [],
       learnMoreUrl: null,
+      reviewedAt: null,
+      reviewedBy: null,
     } satisfies Media);
 
   let file: File | null = null;

@@ -1,4 +1,4 @@
-import type { Booth, BoothTelemetry, Media } from "../domain/types";
+import type { Booth, BoothTelemetry, Media, MediaInstance, StorageLocation } from "../domain/types";
 
 // Conversion entre les lignes Postgres (snake_case) et le modèle de domaine
 // (camelCase). Les agrégats (sessions/revenu/historique/logs du jour) viennent de
@@ -75,6 +75,8 @@ interface MediaRow {
   synopsis: string;
   stills: string[] | null;
   learn_more_url: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 }
 
 export function rowToMedia(row: MediaRow): Media {
@@ -99,6 +101,8 @@ export function rowToMedia(row: MediaRow): Media {
     synopsis: row.synopsis,
     stills: row.stills ?? [],
     learnMoreUrl: row.learn_more_url,
+    reviewedAt: row.reviewed_at ? new Date(row.reviewed_at).getTime() : null,
+    reviewedBy: row.reviewed_by,
   };
 }
 
@@ -124,6 +128,37 @@ export function mediaToRow(m: Media): Record<string, unknown> {
     stills: m.stills,
     learn_more_url: m.learnMoreUrl,
   };
+}
+
+// ── Supports de stockage & présence des médias ───────────────────────────────
+interface StorageLocationRow {
+  id: string;
+  booth_id: string;
+  type: StorageLocation["type"];
+  label: string;
+  capacity_bytes: number;
+  free_bytes: number;
+}
+
+export function rowToStorageLocation(row: StorageLocationRow): StorageLocation {
+  return {
+    id: row.id,
+    boothId: row.booth_id,
+    type: row.type,
+    label: row.label,
+    capacityBytes: Number(row.capacity_bytes),
+    freeBytes: Number(row.free_bytes),
+  };
+}
+
+interface MediaInstanceRow {
+  id: string;
+  media_id: string;
+  storage_location_id: string;
+}
+
+export function rowToMediaInstance(row: MediaInstanceRow): MediaInstance {
+  return { id: row.id, mediaId: row.media_id, storageLocationId: row.storage_location_id };
 }
 
 /** Ligne à écrire dans `booths` (upsert). Les agrégats ne sont pas persistés ici. */

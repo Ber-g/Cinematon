@@ -72,6 +72,10 @@ export interface Media {
   readonly synopsis: string;
   readonly stills: readonly string[];
   readonly learnMoreUrl: string | null;
+  /** Validation humaine (opérateur) : epoch ms de la validation, `null` si non validée. */
+  readonly reviewedAt: number | null;
+  /** Id de l'utilisateur ayant validé (audit), `null` si non validée. */
+  readonly reviewedBy: string | null;
 }
 
 export interface StorageLocation {
