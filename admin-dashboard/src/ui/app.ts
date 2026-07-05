@@ -156,15 +156,18 @@ export class App {
     const kpis = computeKpis(all);
     const booths = this.currentBooths();
 
+    // Auto-position : Gridstack place les tuiles dans les colonnes ACTIVES (6 → 3 → 2
+    // → 1 selon le breakpoint). Figer gs-x/gs-y sur 6 colonnes cassait la mise en page
+    // dès que le responsive tombait à 3 colonnes (tuiles rabattues et empilées).
     const gridItems = kpis.map((k, i) =>
-      el("div", { class: "grid-stack-item", "gs-id": `kpi-${i}`, "gs-w": "1", "gs-h": "1", "gs-x": String(i % 6), "gs-y": "0" }, [
+      el("div", { class: "grid-stack-item", "gs-id": `kpi-${i}`, "gs-w": "1", "gs-h": "1", "gs-auto-position": "true" }, [
         el("div", { class: "grid-stack-item-content" }, [
           kpiTile(k, this.isKpiActive(k), k.filter !== undefined && !this.editing, () => this.applyFilter(k)),
         ]),
       ]),
     );
 
-    const cards = booths.map((b) => el("div", { class: "col-sm-6 col-xl-4" }, [boothCard(b, (id) => this.openDrawer(id))]));
+    const cards = booths.map((b) => el("div", { class: "col-12 col-md-6" }, [boothCard(b, (id) => this.openDrawer(id))]));
 
     return el("div", {}, [
       el("div", { class: "mb-3" }, [
@@ -177,8 +180,8 @@ export class App {
       el("div", { class: "grid-stack" }, gridItems),
       this.filterBanner(),
       el("div", { class: "row row-cards mt-1" }, [
-        el("div", { class: "col-xl-4" }, [statusDistribution(all)]),
-        el("div", { class: "col-xl-8" }, [el("div", { class: "row row-cards" }, cards)]),
+        el("div", { class: "col-12 col-xl-4" }, [statusDistribution(all)]),
+        el("div", { class: "col-12 col-xl-8" }, [el("div", { class: "row row-cards" }, cards)]),
       ]),
       el("div", { class: "mt-3" }, [boothTable(booths, this.sort, (k) => this.applySort(k), (id) => this.openDrawer(id))]),
     ]);

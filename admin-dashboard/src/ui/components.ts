@@ -119,11 +119,17 @@ export function statusDistribution(booths: readonly Booth[]): HTMLElement {
 export function boothCard(booth: Booth, onOpen: (id: string) => void): HTMLElement {
   const card = el("div", { class: "card h-100 card-link cursor-pointer", role: "button", tabindex: "0" }, [
     el("div", { class: "card-body" }, [
-      el("div", { class: "d-flex align-items-start justify-content-between mb-2" }, [
-        el("div", {}, [el("div", { class: "fw-bold" }, [booth.label]), el("div", { class: "text-secondary small" }, [booth.location])]),
-        healthBadge(booth.health),
+      el("div", { class: "d-flex align-items-start justify-content-between mb-2 gap-2" }, [
+        el("div", { class: "text-truncate", style: "min-width:0" }, [
+          el("div", { class: "fw-bold text-truncate", title: booth.label }, [booth.label]),
+          el("div", { class: "text-secondary small text-truncate" }, [booth.location]),
+        ]),
+        el("div", { class: "flex-shrink-0" }, [healthBadge(booth.health)]),
       ]),
-      el("div", { class: "d-flex align-items-center justify-content-between mb-2" }, [indicatorChips(booth), connectionBadge(booth)]),
+      el("div", { class: "d-flex align-items-center justify-content-between mb-2 gap-2" }, [
+        el("div", { class: "text-truncate", style: "min-width:0" }, [indicatorChips(booth)]),
+        el("div", { class: "flex-shrink-0" }, [connectionBadge(booth)]),
+      ]),
       el("div", { class: "row text-secondary small" }, [
         el("div", { class: "col" }, [`${booth.sessionsToday} sessions`]),
         el("div", { class: "col text-end" }, [relativeTime(booth.lastHeartbeatAt)]),

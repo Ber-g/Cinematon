@@ -42,6 +42,8 @@ export function formatMoney(cents: number): string {
 }
 
 export function relativeTime(epochMs: number): string {
+  // 0 / valeur absente = aucun heartbeat reçu (pas « il y a 56 ans »).
+  if (!epochMs || epochMs <= 0) return "jamais";
   const s = Math.round((Date.now() - epochMs) / 1000);
   if (s < 60) return `il y a ${s} s`;
   const m = Math.round(s / 60);
