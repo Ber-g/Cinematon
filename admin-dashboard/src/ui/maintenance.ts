@@ -4,7 +4,7 @@ import { el, relativeTime } from "./dom";
 
 // Menu Maintenance (Phase 4 / F10) : versions logicielles (releases), déploiement vers
 // des cabines, état par cabine (version courante, dernier contact, fenêtre de MAJ,
-// dernier déploiement + rollback). L'AGENT device (appliquer/rollback réel) est différé —
+// dernier déploiement + rollback). L'updater embarqué (appliquer/rollback réel) est différé —
 // ici on gère le déploiement + un pilotage manuel du statut (ops), et les alertes de rollback.
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -55,7 +55,7 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
         ])
       : el("span", { class: "text-secondary" }, ["—"]);
 
-    // Actions ops (en attendant l'agent device) : marquer appliquée / rollback.
+    // Actions ops (en attendant l'updater embarqué) : marquer appliquée / rollback.
     const actions: HTMLElement[] = [];
     if (latest && (latest.status === "scheduled" || latest.status === "pending" || latest.status === "applying" || latest.status === "failed")) {
       const apply = el("button", { class: "btn btn-sm", type: "button", title: "Marquer comme appliquée (ops)" }, ["Appliquée"]);
@@ -81,7 +81,7 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
   return el("div", {}, [
     el("div", { class: "mb-3" }, [
       el("h2", { class: "page-title m-0" }, ["Maintenance & mises à jour"]),
-      el("div", { class: "text-secondary" }, ["Déploiement des versions, fenêtres de MAJ et rollback. L'application réelle côté borne (agent + watchdog) suivra ; ici on planifie et on suit l'état."]),
+      el("div", { class: "text-secondary" }, ["Déploiement des versions, fenêtres de MAJ et rollback. L'application réelle côté borne (updater + watchdog) suivra ; ici on planifie et on suit l'état."]),
     ]),
     el("div", { class: "card mb-3" }, [
       el("div", { class: "card-header d-flex align-items-center" }, [el("h3", { class: "card-title m-0" }, ["Versions logicielles"]), el("div", { class: "ms-auto" }, [newRel])]),

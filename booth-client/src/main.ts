@@ -28,7 +28,8 @@ async function main(): Promise<void> {
   if (backend.isConfigured && (await backend.init())) {
     boothId = backend.boothId;
     organizationId = backend.organizationId;
-    void backend.reportHeartbeat(BOOTH_VERSION); // remonte version + dernier contact
+    await backend.reportHeartbeat(BOOTH_VERSION); // remonte version + dernier contact
+    await backend.applyPendingUpdates(BOOTH_VERSION); // updater : applique les déploiements dus
     const films = await backend.loadCatalog();
     if (films.length > 0) setCatalog(films);
     sink = (snapshot) => void backend.saveSession(snapshot);

@@ -92,6 +92,42 @@ export class BoothBackend {
     if (error) console.error("[booth] heartbeat :", error.message);
   }
 
+  /**
+   * Updater embarqué (F10, prototype) : applique les déploiements en attente pour CETTE cabine
+   * dont la fenêtre est échue. Ne pouvant pas swapper le code d'une web-app, on SIMULE
+   * l'application (statut → `applied`, version cabine = version de la release). Le vrai
+   * updater embarqué (télécharger/redémarrer/watchdog/rollback) viendra avec le déploiement OS.
+   * Renvoie la version courante après application.
+   */
+  async applyPendingUpdates(currentVersion: string): Promise<string> {
+    if (!supabase || !this.cfg) return currentVersion;
+    const nowIso = new Date().toISOString();
+    const { data } = await supabase
+      .from("booth_updates")
+      .select("id,release_id,status,scheduled_for")
+      .eq("booth_id", this.cfg.boothId)
+      .in("status", ["pending", "scheduled"]);
+    const due = ((data ?? []) as Array<{ id: string; release_id: string; scheduled_for: string | null }>).filter((u) => !u.scheduled_for || u.scheduled_for <= nowIso);
+    if (due.length === 0) return currentVersion;
+
+    const { data: rels } = await supabase.from("releases").select("id,version,created_at").in("id", due.map((u) => u.release_id));
+    const byId = new Map(((rels ?? []) as Array<{ id: string; version: string; created_at: string }>).map((r) => [r.id, r]));
+
+    let newVersion = currentVersion;
+    let newest = 0;
+    for (const u of due) {
+      await supabase.from("booth_updates").update({ status: "applied", applied_at: nowIso }).eq("id", u.id);
+      const rel = byId.get(u.release_id);
+      if (rel) {
+        const t = new Date(rel.created_at).getTime();
+        if (t >= newest) { newest = t; newVersion = rel.version; }
+      }
+    }
+    await supabase.from("booths").update({ software_version: newVersion, last_heartbeat_at: nowIso }).eq("id", this.cfg.boothId);
+    console.info(`[booth] MAJ appliquée${due.length > 1 ? ` (${due.length})` : ""} → version ${newVersion}`);
+    return newVersion;
+  }
+
   /** Catalogue réel de l'org (médias actifs, scoping RLS). */
   async loadCatalog(): Promise<Film[]> {
     if (!supabase) return [];

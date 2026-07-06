@@ -845,7 +845,7 @@ export class FleetStore {
     return { ok: true };
   }
 
-  /** Change le statut d'un déploiement (ops/simulation en attendant l'agent device) : `applied` monte la
+  /** Change le statut d'un déploiement (ops/simulation en attendant l'updater embarqué) : `applied` monte la
    *  version de la cabine ; `rolled_back`/`failed` créent une alerte. */
   async setUpdateStatus(updateId: string, status: BoothUpdate["status"]): Promise<{ ok: boolean; error?: string }> {
     if (this.mode !== "supabase") return { ok: true };
