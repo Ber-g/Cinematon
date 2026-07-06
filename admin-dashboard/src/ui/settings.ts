@@ -119,7 +119,7 @@ function generalTab(store: FleetStore, org: OrgSummary | null, canManage: boolea
     el("div", { class: "card-body" }, [
       el("div", { class: "row" }, [
         field("Nom", "Nom affiché de l'organisation.", name),
-        field("Type", "Catégorie de lieu.", type),
+        field("Type d'organisation", "Nature de l'organisation (bar, festival, événement…). La catégorie du LIEU est réglée sur chaque cabine.", type),
         field("Région", "1 organisation = 1 région (code libre).", region),
         field("Devise", "ISO-4217 (EUR, GBP…). Pilote le formatage monétaire.", currency),
         field("Whitelist (tags d'audience)", "Médias non conformes exclus des cabines.", whitelist),

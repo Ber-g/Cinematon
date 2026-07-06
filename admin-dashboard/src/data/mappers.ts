@@ -13,6 +13,7 @@ interface BoothRow {
   address: string;
   gps_lat: number | null;
   gps_lng: number | null;
+  venue_type: string | null;
   health: Booth["health"];
   indicators: string[];
   software_version: string;
@@ -43,6 +44,7 @@ export function rowToBooth(row: BoothRow): Booth {
     address: row.address,
     gpsLat: row.gps_lat,
     gpsLng: row.gps_lng,
+    venueType: row.venue_type ?? null,
     health: row.health,
     indicators: (row.indicators ?? []) as Booth["indicators"],
     softwareVersion: row.software_version,
@@ -220,6 +222,7 @@ export function boothToRow(b: Booth): Record<string, unknown> {
     address: b.address,
     gps_lat: b.gpsLat,
     gps_lng: b.gpsLng,
+    venue_type: b.venueType,
     health: b.health,
     indicators: b.indicators,
     software_version: b.softwareVersion,

@@ -13,6 +13,7 @@ import { maintenancePage } from "./maintenance";
 import { rightsPage } from "./rights";
 import { sessionsPage } from "./sessions";
 import { settingsPage } from "./settings";
+import { mapPage, mountFleetMap } from "./mapView";
 
 const THEME_KEY = "cinematon.admin.theme.v1";
 
@@ -29,7 +30,7 @@ export class App {
   private editing = false;
   private filter: FilterState | null = null;
   private sort: SortState = { key: "health", dir: "asc" };
-  private view: "overview" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" = "overview";
+  private view: "overview" | "map" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" = "overview";
   private themePref: "system" | "light" | "dark" = ((): "system" | "light" | "dark" => {
     const v = localStorage.getItem(THEME_KEY);
     return v === "light" || v === "dark" || v === "system" ? v : "system";
@@ -65,7 +66,9 @@ export class App {
     }
     this.maybeAcceptInvite();
     const page =
-      this.view === "media"
+      this.view === "map"
+        ? mapPage(this.store)
+        : this.view === "media"
         ? mediaPage(this.store, () => this.render())
         : this.view === "revenue"
           ? revenuePage(this.store)
@@ -88,9 +91,10 @@ export class App {
       ]),
     );
     if (this.view === "overview") this.mountGrid();
+    if (this.view === "map") mountFleetMap(this.store);
   }
 
-  private setView(v: "overview" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings"): void {
+  private setView(v: "overview" | "map" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings"): void {
     this.view = v;
     this.render();
   }
@@ -138,6 +142,7 @@ export class App {
         el("div", { class: "collapse navbar-collapse", id: "sidebar-menu" }, [
           el("ul", { class: "navbar-nav pt-lg-2 w-100" }, [
             navItem("Vue d'ensemble", "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
+            navItem("Carte", "M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z", this.view === "map", () => this.setView("map")),
             navItem("Médias", "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", this.view === "media", () => this.setView("media")),
             navItem("Revenus", "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6", this.view === "revenue", () => this.setView("revenue")),
             this.store.activeHasModule("rights")

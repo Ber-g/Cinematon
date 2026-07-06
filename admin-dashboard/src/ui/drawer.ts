@@ -1,4 +1,6 @@
 import { Offcanvas, Modal } from "bootstrap";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import type { Booth, HealthStatus } from "../domain/types";
 import { allHealthStatuses, healthMeta } from "../domain/status";
 import type { FleetStore } from "../data/store";
@@ -182,14 +184,31 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       address: "",
       gpsLat: null,
       gpsLng: null,
+      venueType: null,
       notes: "",
     } satisfies Booth);
+
+  // Catégorie du LIEU où est posée la cabine (propre à la cabine, ≠ type d'organisation).
+  const VENUE_TYPES = ["Bar", "Restaurant", "Café", "Hôtel", "Musée", "Cinéma", "Festival", "Événement", "Tiers-lieu", "Espace public", "Autre"];
 
   const field = (labelText: string, input: HTMLElement): HTMLElement =>
     el("div", { class: "mb-3" }, [el("label", { class: "form-label" }, [labelText]), input]);
 
   const labelInput = el("input", { class: "form-control", type: "text", value: b.label, placeholder: "Cinematon — Nom du lieu" });
   const locationInput = el("input", { class: "form-control", type: "text", value: b.location, placeholder: "Ville · Lieu" });
+  // Adresse postale : repli quand le GPS est absent/erroné (F11).
+  const addressInput = el("input", { class: "form-control", type: "text", value: b.address, placeholder: "N°, rue, code postal, ville" }) as HTMLInputElement;
+  // Localisation précise (F11) : on DROP UNE PIN sur la carte → coordonnées exactes.
+  // L'adresse postale + les notes restent le repli si le GPS/la carte ne suffit pas.
+  let pickedLat: number | null = b.gpsLat;
+  let pickedLng: number | null = b.gpsLng;
+  const mapDiv = el("div", { style: "height: 260px; border-radius: 8px; overflow: hidden; z-index: 0;" });
+  const coordReadout = el("div", { class: "form-hint small mt-1 d-flex align-items-center gap-2" }, []);
+  const clearPin = el("button", { class: "btn btn-sm btn-ghost-secondary py-0 px-1", type: "button" }, ["retirer la pin"]);
+  const venueSelect = el("select", { class: "form-select" }, [
+    el("option", { value: "", ...(b.venueType ? {} : { selected: "selected" }) }, ["—"]),
+    ...VENUE_TYPES.map((v) => el("option", { value: v, ...(v === b.venueType ? { selected: "selected" } : {}) }, [v])),
+  ]) as HTMLSelectElement;
   const healthSelect = el(
     "select",
     { class: "form-select" },
@@ -202,10 +221,16 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
 
   const form = el("form", {}, [
     field("Nom de la cabine", labelInput),
-    field("Emplacement", locationInput),
+    field("Emplacement (ville · lieu)", locationInput),
+    field("Adresse postale", addressInput),
+    field("Catégorie de lieu", venueSelect),
+    field("Localisation précise — cliquez sur la carte pour poser la pin", el("div", {}, [
+      mapDiv,
+      el("div", { class: "d-flex align-items-center justify-content-between mt-1" }, [coordReadout, clearPin]),
+    ])),
     field("Statut de santé", healthSelect),
     field("Version logicielle", versionInput),
-    field("Notes", notesInput),
+    field("Notes d'accès (où exactement, comment brancher, contact sur place…)", notesInput),
   ]);
 
   const save = el("button", { class: "btn btn-primary ms-auto", type: "button" }, [isNew ? "Créer la cabine" : "Enregistrer"]);
@@ -228,6 +253,50 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
   document.body.append(modalEl);
   const modal = new Modal(modalEl);
 
+  // ── Carte : drop d'une pin pour la localisation précise (F11) ──────────────
+  const DEFAULT_CENTER: [number, number] = [46.6, 2.5]; // France, si aucune coordonnée
+  const pinIcon = L.divIcon({ className: "cinematon-pin", html: '<div style="font-size:26px;line-height:1">📍</div>', iconSize: [26, 26], iconAnchor: [13, 24] });
+  let map: L.Map | null = null;
+  let marker: L.Marker | null = null;
+  const updateReadout = (): void => {
+    coordReadout.textContent = pickedLat != null && pickedLng != null ? `📍 ${pickedLat.toFixed(5)}, ${pickedLng.toFixed(5)}` : "Aucune pin — cliquez sur la carte pour placer la cabine.";
+    clearPin.style.display = pickedLat != null ? "" : "none";
+  };
+  const setPin = (lat: number, lng: number): void => {
+    pickedLat = lat;
+    pickedLng = lng;
+    if (map) {
+      if (marker) marker.setLatLng([lat, lng]);
+      else {
+        marker = L.marker([lat, lng], { draggable: true, icon: pinIcon }).addTo(map);
+        marker.on("dragend", () => {
+          const p = marker!.getLatLng();
+          pickedLat = p.lat;
+          pickedLng = p.lng;
+          updateReadout();
+        });
+      }
+    }
+    updateReadout();
+  };
+  clearPin.addEventListener("click", () => {
+    pickedLat = null;
+    pickedLng = null;
+    if (marker && map) { map.removeLayer(marker); marker = null; }
+    updateReadout();
+  });
+  updateReadout();
+  // Leaflet a besoin d'un conteneur VISIBLE et dimensionné → init à l'ouverture du modal.
+  modalEl.addEventListener("shown.bs.modal", () => {
+    if (map) return;
+    const center: [number, number] = pickedLat != null && pickedLng != null ? [pickedLat, pickedLng] : DEFAULT_CENTER;
+    map = L.map(mapDiv).setView(center, pickedLat != null ? 15 : 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19 }).addTo(map);
+    if (pickedLat != null && pickedLng != null) setPin(pickedLat, pickedLng);
+    map.on("click", (e: L.LeafletMouseEvent) => setPin(e.latlng.lat, e.latlng.lng));
+    map.invalidateSize();
+  });
+
   save.addEventListener("click", () => {
     if (!labelInput.value.trim()) {
       labelInput.classList.add("is-invalid");
@@ -237,13 +306,20 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       ...b,
       label: labelInput.value.trim(),
       location: locationInput.value.trim(),
+      address: addressInput.value.trim(),
       health: healthSelect.value as HealthStatus,
       softwareVersion: versionInput.value.trim() || b.softwareVersion,
       notes: notesInput.value.trim(),
+      gpsLat: pickedLat,
+      gpsLng: pickedLng,
+      venueType: venueSelect.value || null,
     };
     store.upsertBooth(updated);
     modal.hide();
   });
-  modalEl.addEventListener("hidden.bs.modal", () => modalEl.remove(), { once: true });
+  modalEl.addEventListener("hidden.bs.modal", () => {
+    if (map) { map.remove(); map = null; }
+    modalEl.remove();
+  }, { once: true });
   modal.show();
 }

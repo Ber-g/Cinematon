@@ -145,6 +145,8 @@ export interface Booth {
   address: string;
   gpsLat: number | null;
   gpsLng: number | null;
+  /** Catégorie du LIEU où est posée la cabine (bar, musée, festival…). Propre à la cabine. */
+  venueType: string | null;
   notes: string;
   /** Machine signée (DRM) : epoch ms de signature du device, `null` si non signée. */
   readonly signedAt?: number | null;

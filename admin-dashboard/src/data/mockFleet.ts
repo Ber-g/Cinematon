@@ -25,7 +25,7 @@ function genHistory(seed: number, scale: number): DailyStat[] {
 
 // Littéraux « seed » avec ownerId ; le mapping ci-dessous les transpose vers le
 // modèle V2 (organizationId + adresse + GPS nullable).
-type SeedBooth = Omit<Booth, "organizationId" | "address" | "gpsLat" | "gpsLng"> & { ownerId: string };
+type SeedBooth = Omit<Booth, "organizationId" | "address" | "gpsLat" | "gpsLng" | "venueType"> & { ownerId: string };
 
 const SEED_BOOTHS: readonly SeedBooth[] = [
   {
@@ -151,6 +151,7 @@ export const MOCK_BOOTHS: readonly Booth[] = SEED_BOOTHS.map(({ ownerId, ...b })
   address: b.location,
   gpsLat: null,
   gpsLng: null,
+  venueType: null,
 }));
 
 // ── Organisations, utilisateurs, appartenances (mock V2) ─────────────────────
