@@ -59,3 +59,29 @@ le test à tort. Il prouve que le test sait distinguer *refusé* de *autorisé*.
 
 Se connecter au dashboard avec `iso-a@…` : ne doit afficher que Le Perchoir.
 Se reconnecter avec `iso-b@…` : ne doit afficher que Le Comptoir Général.
+
+## Compte device (CIN-002) — durcir l'auth cabine
+
+Objectif : la borne n'utilise plus un compte super_user mais un **compte device dédié** aux
+droits minimaux (migration `0009`). Étapes (une fois) :
+
+1. **Appliquer `0009_device_auth.sql`** (SQL editor).
+2. **Créer le compte device** : `Authentication → Add user` (Auto Confirm), ex.
+   `device-perchoir@cinematon.device` + un mot de passe.
+3. **Lier le device à sa cabine** (SQL editor) :
+   ```sql
+   update public.booths
+   set device_user_id = (select id from public.users where email = 'device-perchoir@cinematon.device')
+   where id = '62d91f6f-3370-4462-a445-9bd43df55bb9'; -- UUID de la cabine
+   ```
+4. **Pointer la cabine sur le device** : dans `booth-client/.env`, remplacer
+   `VITE_DEVICE_EMAIL`/`VITE_DEVICE_PASSWORD` par le compte device (au lieu de `test@`).
+5. **Vérifier** :
+   ```bash
+   ISO_DEVICE_EMAIL=device-perchoir@cinematon.device ISO_DEVICE_PASSWORD='…' \
+   ISO_DEVICE_BOOTH_ID=62d91f6f-3370-4462-a445-9bd43df55bb9 \
+   ISO_DEVICE_ORG_ID=00000000-0000-0000-0000-0000000000a1 \
+     node --experimental-websocket supabase/tests/device_smoke.mjs
+   ```
+   Attendu : le device lit son catalogue + écrit ses séances/heartbeat, mais **ne voit ni
+   membres ni revenus** et **ne peut ni altérer les médias ni toucher une autre cabine**.
