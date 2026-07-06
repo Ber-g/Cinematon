@@ -24,6 +24,23 @@ export function connectionBadge(booth: Booth): HTMLElement {
   ]);
 }
 
+/**
+ * Statut de connectivité déduit de la FRAÎCHEUR du heartbeat (F3 : détecter une panne
+ * < 5 min). Indépendant du champ `health` stocké — une cabine « opérationnelle » mais
+ * silencieuse est en fait hors-ligne.
+ */
+export function heartbeatBadge(lastHeartbeatAt: number): HTMLElement {
+  const min = 60_000;
+  const age = lastHeartbeatAt > 0 ? Date.now() - lastHeartbeatAt : Number.POSITIVE_INFINITY;
+  const s =
+    age < 5 * min
+      ? { label: "En ligne", color: "green", hint: "Heartbeat récent (< 5 min)" }
+      : age < 30 * min
+        ? { label: "Silencieuse", color: "yellow", hint: "Pas de heartbeat depuis > 5 min" }
+        : { label: lastHeartbeatAt > 0 ? "Hors-ligne" : "Jamais vue", color: "red", hint: "Pas de heartbeat depuis > 30 min" };
+  return el("span", { class: `badge bg-${s.color}-lt`, title: s.hint }, [s.label]);
+}
+
 export function indicatorChips(booth: Booth): HTMLElement {
   const chips = booth.indicators.map((ind) => el("span", { class: "badge bg-secondary-lt" }, [indicatorLabel(ind)]));
   return el("span", { class: "d-inline-flex flex-wrap gap-1" }, chips.length ? chips : [el("span", { class: "text-secondary" }, ["—"])]);
@@ -126,6 +143,7 @@ export function boothCard(booth: Booth, onOpen: (id: string) => void): HTMLEleme
         ]),
         el("div", { class: "flex-shrink-0 text-end" }, [
           healthBadge(booth.health),
+          el("div", { class: "mt-1" }, [heartbeatBadge(booth.lastHeartbeatAt)]),
           booth.signedAt ? el("div", { class: "mt-1" }, [el("span", { class: "badge bg-green-lt", title: "Machine signée (DRM device)" }, ["✓ signée"])]) : el("span", {}, []),
         ]),
       ]),
@@ -203,7 +221,7 @@ export function boothTable(
       el("td", { class: "text-secondary" }, [String(b.sessionsToday)]),
       el("td", { class: "text-secondary" }, [formatMoney(b.revenueTodayCents)]),
       el("td", { class: "text-secondary" }, [b.softwareVersion]),
-      el("td", { class: "text-secondary" }, [relativeTime(b.lastHeartbeatAt)]),
+      el("td", {}, [el("div", { class: "d-flex align-items-center gap-2" }, [heartbeatBadge(b.lastHeartbeatAt), el("span", { class: "text-secondary small" }, [relativeTime(b.lastHeartbeatAt)])])]),
     ]);
     tr.addEventListener("click", () => onOpen(b.id));
     return tr;
