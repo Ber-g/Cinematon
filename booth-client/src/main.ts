@@ -31,9 +31,14 @@ async function main(): Promise<void> {
     await backend.reportHeartbeat(BOOTH_VERSION); // remonte version + dernier contact
     await backend.applyPendingUpdates(BOOTH_VERSION); // updater : applique les déploiements dus
     const films = await backend.loadCatalog();
-    if (films.length > 0) setCatalog(films);
+    const blocked = await backend.loadBlockedMedia(); // droits F15 : exclure expiré / au plafond
+    const playable = films.filter((f) => !blocked.has(f.id));
+    if (playable.length > 0) setCatalog(playable);
     sink = (snapshot) => void backend.saveSession(snapshot);
-    console.info(`[booth] branché Supabase · org ${organizationId} · ${films.length} film(s)`);
+    console.info(
+      `[booth] branché Supabase · org ${organizationId} · ${playable.length} film(s)` +
+        (blocked.size > 0 ? ` (${blocked.size} exclu(s) : droits/plafond)` : ""),
+    );
   } else {
     console.info("[booth] mode hors ligne (catalogue factice, sessions en mémoire)");
   }

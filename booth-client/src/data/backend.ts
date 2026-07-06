@@ -139,6 +139,22 @@ export class BoothBackend {
     return (data ?? []).map((r) => rowToFilm(r as Record<string, unknown>));
   }
 
+  /**
+   * Enforcement des droits (F15, CIN-010) : renvoie les `media_id` à EXCLURE du catalogue de
+   * CETTE cabine — licence expirée / pas encore valide, cabine non autorisée, ou plafond de
+   * séances atteint (par cabine ou org-wide). Calculé côté serveur (fonction `security definer`
+   * `blocked_media_for_booth`) : la borne n'a pas besoin de lire licences/plays.
+   */
+  async loadBlockedMedia(): Promise<Set<string>> {
+    if (!supabase || !this.cfg) return new Set();
+    const { data, error } = await supabase.rpc("blocked_media_for_booth", { p_booth: this.cfg.boothId });
+    if (error) {
+      console.error("[booth] enforcement droits :", error.message);
+      return new Set(); // en cas d'erreur, ne pas bloquer le parcours (fail-open côté produit)
+    }
+    return new Set(((data ?? []) as Array<{ media_id: string }>).map((r) => String(r.media_id)));
+  }
+
   /** Remonte une séance close + ses lectures. Fire-and-forget (n'interrompt pas le parcours). */
   async saveSession(snapshot: { session: Session; plays: readonly Play[] }): Promise<void> {
     if (!supabase || !this.cfg) return;
