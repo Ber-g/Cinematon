@@ -1,4 +1,4 @@
-import { activeCatalog, availableMoods, filmById, FACTICE_CATALOG } from "../domain/catalog";
+import { activeCatalog, availableMoods, filmById } from "../domain/catalog";
 import type { Film, MoodDurationQuery } from "../domain/types";
 import type { Recommender } from "../reco/Recommender";
 import { SessionManager } from "../session/SessionManager";
@@ -138,7 +138,7 @@ export class App {
     const { session, plays } = this.sessions.end();
     const shareUrl = `${this.config.shareBaseUrl}/s/${session.shareToken}`;
     this.mount(
-      endScreen(plays, (id) => filmById(id, FACTICE_CATALOG), shareUrl, () => this.goIdle()),
+      endScreen(plays, (id) => filmById(id), shareUrl, () => this.goIdle()),
     );
     // Retour automatique à l'accueil si personne ne clique (kiosque).
     this.endTimer = window.setTimeout(() => this.goIdle(), this.config.endAutoReturnMs);
