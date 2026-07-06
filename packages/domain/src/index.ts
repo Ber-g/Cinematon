@@ -19,6 +19,10 @@ export interface Organization {
   readonly id: string;
   name: string;
   type: OrganizationType;
+  /** Région d'opération. Règle : 1 org = 1 région (code libre "FR", "BE"…), nullable au départ. */
+  region?: string | null;
+  /** Devise ISO-4217 (défaut EUR). Pilote le formatage monétaire de l'org. */
+  currency?: string;
   settings: { themeId?: string; whitelistTags: string[] };
 }
 
@@ -76,6 +80,12 @@ export interface Media {
   readonly reviewedAt: number | null;
   /** Id de l'utilisateur ayant validé (audit), `null` si non validée. */
   readonly reviewedBy: string | null;
+  /** Protection du fichier (anti-copie). La DRM elle-même est portée par la borne signée. */
+  readonly protection?: "none" | "encrypted" | "drm";
+  /** Schéma DRM si `protection = 'drm'` (widevine, playready, fairplay, custom). */
+  readonly drmScheme?: string | null;
+  /** Le master a été livré déjà protégé par le distributeur. */
+  readonly sourceProtected?: boolean;
 }
 
 export interface StorageLocation {
@@ -136,6 +146,12 @@ export interface Booth {
   gpsLat: number | null;
   gpsLng: number | null;
   notes: string;
+  /** Machine signée (DRM) : epoch ms de signature du device, `null` si non signée. */
+  readonly signedAt?: number | null;
+  /** Référence côté serveur de la clé/cert DRM du device — jamais la clé elle-même. */
+  readonly deviceKeyRef?: string | null;
+  /** Heure locale (0-23) de la fenêtre de MAJ non urgente (F10). */
+  readonly maintenanceHour?: number;
 }
 
 // ── Sessions & lectures ──────────────────────────────────────────────────────

@@ -41,6 +41,14 @@ function subtitleCell(store: FleetStore, m: Media): HTMLElement {
   );
 }
 
+/** Signal protection : DRM / chiffré / aucun. (La clé DRM vit sur la borne signée.) */
+function protectionCell(m: Media): HTMLElement {
+  const p = m.protection ?? "none";
+  if (p === "drm") return el("span", { class: "badge bg-purple-lt", title: `Protégé DRM${m.drmScheme ? " · " + m.drmScheme : ""}` }, [`🔒 DRM${m.drmScheme ? " " + m.drmScheme : ""}`]);
+  if (p === "encrypted") return el("span", { class: "badge bg-blue-lt", title: "Fichier chiffré" }, ["🔒 Chiffré"]);
+  return el("span", { class: "text-secondary" }, ["—"]);
+}
+
 /** Signal vidéo : validée par l'opérateur / à valider / pas de fichier. */
 function videoStatusCell(m: Media): HTMLElement {
   if (!m.storageUrl) return el("span", { class: "badge bg-secondary-lt", title: "Aucun fichier vidéo" }, ["—"]);
@@ -105,6 +113,7 @@ export function mediaPage(store: FleetStore, onChanged: () => void): HTMLElement
         el("td", {}, [el("span", { class: "d-inline-flex flex-wrap gap-1" }, m.audienceTags.map((t) => el("span", { class: "badge bg-secondary-lt" }, [t])))]),
         el("td", {}, [subtitleCell(store, m)]),
         el("td", {}, [videoStatusCell(m)]),
+        el("td", {}, [protectionCell(m)]),
         el("td", {}, [coverage]),
         el("td", { class: "text-secondary text-nowrap" }, [m.contentHash ? m.contentHash.slice(0, 10) + "…" : "—"]),
         el("td", { class: "text-end" }, [rowActions(store, m, onChanged)]),
@@ -145,6 +154,7 @@ export function mediaPage(store: FleetStore, onChanged: () => void): HTMLElement
                     el("th", {}, ["Tags d'audience"]),
                     el("th", {}, ["Sous-titres"]),
                     el("th", {}, ["Vidéo"]),
+                    el("th", {}, ["Protection"]),
                     el("th", {}, ["Cabines"]),
                     el("th", {}, ["Empreinte"]),
                     el("th", {}, []),
@@ -349,6 +359,8 @@ export function openMediaForm(store: FleetStore, existing: Media | null, onChang
   const duration = el("input", { class: "form-control", type: "number", value: String(base.durationSeconds), placeholder: "secondes" }) as HTMLInputElement;
   const language = el("input", { class: "form-control", type: "text", value: base.language, maxlength: "5" }) as HTMLInputElement;
   const audienceTags = el("input", { class: "form-control", type: "text", value: base.audienceTags.join(", "), placeholder: "18+, bar, enfant…" }) as HTMLInputElement;
+  const protection = el("select", { class: "form-select" }, (["none", "encrypted", "drm"] as const).map((p) => el("option", { value: p, ...((base.protection ?? "none") === p ? { selected: "selected" } : {}) }, [p === "none" ? "Aucune" : p === "encrypted" ? "Chiffré" : "DRM"]))) as HTMLSelectElement;
+  const drmScheme = el("input", { class: "form-control", type: "text", value: base.drmScheme ?? "", placeholder: "widevine, playready… (si DRM)" }) as HTMLInputElement;
   const synopsis = el("textarea", { class: "form-control", rows: "2" }, [base.synopsis]) as HTMLTextAreaElement;
 
   const orgSelect = el(
@@ -384,6 +396,8 @@ export function openMediaForm(store: FleetStore, existing: Media | null, onChang
       field("Durée (secondes)", duration),
       field("Langue (ISO)", language),
       field("Tags d'audience", audienceTags),
+      field("Protection", protection),
+      field("Schéma DRM", drmScheme),
     ]),
     el("div", { class: "mb-2" }, [el("label", { class: "form-label" }, ["Synopsis"]), synopsis]),
   ]);
@@ -426,6 +440,8 @@ export function openMediaForm(store: FleetStore, existing: Media | null, onChang
       language: language.value.trim() || "fr",
       audienceTags: parseTags(audienceTags.value),
       synopsis: synopsis.value.trim(),
+      protection: protection.value as "none" | "encrypted" | "drm",
+      drmScheme: drmScheme.value.trim() || null,
     };
 
     save.setAttribute("disabled", "true");

@@ -20,7 +20,14 @@ export function openPreview(store: FleetStore, media: Media, onChanged: () => vo
   const video = el("video", { class: "w-100 rounded bg-dark", controls: "true", preload: "metadata", style: "max-height:52vh" }) as HTMLVideoElement;
   const videoWrap = el("div", { class: "mb-3" }, [el("div", { class: "text-secondary text-center py-5" }, ["Chargement de la vidéo…"])]);
 
-  void store.signedUrl(media.storageUrl).then((url) => {
+  const protection = media.protection ?? "none";
+  if (protection !== "none") {
+    videoWrap.replaceChildren(
+      el("div", { class: "alert alert-warning mb-0" }, [
+        `Contenu protégé (${protection === "drm" ? "DRM" + (media.drmScheme ? " · " + media.drmScheme : "") : "chiffré"}) — aperçu indisponible ici. La lecture se fera sur une borne signée (pipeline DRM à venir).`,
+      ]),
+    );
+  } else void store.signedUrl(media.storageUrl).then((url) => {
     if (url) {
       video.src = url;
       videoWrap.replaceChildren(video);

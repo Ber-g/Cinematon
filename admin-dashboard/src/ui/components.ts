@@ -124,7 +124,10 @@ export function boothCard(booth: Booth, onOpen: (id: string) => void): HTMLEleme
           el("div", { class: "fw-bold text-truncate", title: booth.label }, [booth.label]),
           el("div", { class: "text-secondary small text-truncate" }, [booth.location]),
         ]),
-        el("div", { class: "flex-shrink-0" }, [healthBadge(booth.health)]),
+        el("div", { class: "flex-shrink-0 text-end" }, [
+          healthBadge(booth.health),
+          booth.signedAt ? el("div", { class: "mt-1" }, [el("span", { class: "badge bg-green-lt", title: "Machine signée (DRM device)" }, ["✓ signée"])]) : el("span", {}, []),
+        ]),
       ]),
       el("div", { class: "d-flex align-items-center justify-content-between mb-2 gap-2" }, [
         el("div", { class: "text-truncate", style: "min-width:0" }, [indicatorChips(booth)]),

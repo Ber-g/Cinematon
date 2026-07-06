@@ -37,8 +37,8 @@ export function icon(path: string, size = 24): SVGElement {
   return svg;
 }
 
-export function formatMoney(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+export function formatMoney(cents: number, currency = "EUR"): string {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency }).format(cents / 100);
 }
 
 export function relativeTime(epochMs: number): string {
