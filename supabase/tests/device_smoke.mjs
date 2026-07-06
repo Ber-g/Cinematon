@@ -67,15 +67,19 @@ async function main() {
     assert(!error, `lire ses booth_updates — ${error?.message ?? "ok"}`);
   }
   {
+    // Sans .select() : le device écrit mais ne relit PAS (aucune policy SELECT sur booths —
+    // droits minimaux). L'insert de séance ci-dessous prouve que `current_device_booth()` matche.
     const { error } = await c.from("booths").update({ last_heartbeat_at: new Date().toISOString() }).eq("id", boothId);
     assert(!error, `heartbeat : update de SA cabine — ${error?.message ?? "ok"}`);
   }
-  let sessionId = null;
+  let sessionOk = false;
   {
+    // Id généré côté client (pas de RETURNING → pas besoin de SELECT). Le with-check
+    // `booth_id = current_device_booth()` valide le lien device→cabine.
     const token = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
-    const { data, error } = await c.from("sessions").insert({ organization_id: orgId, booth_id: boothId, share_token: token, unlock_method: "mock" }).select("id");
-    sessionId = data?.[0]?.id ?? null;
-    assert(!error && sessionId, `insérer une séance de SA cabine — ${error?.message ?? "ok"}`);
+    const { error } = await c.from("sessions").insert({ id: crypto.randomUUID(), organization_id: orgId, booth_id: boothId, share_token: token, unlock_method: "mock" });
+    sessionOk = !error;
+    assert(!error, `insérer une séance de SA cabine — ${error?.message ?? "ok"}`);
   }
 
   console.log("\n▸ Ce que le device NE DOIT PAS pouvoir faire");
@@ -108,7 +112,7 @@ async function main() {
   }
 
   console.log(`\n── Résultat : ${checks - failures}/${checks} vérifications OK ──`);
-  if (sessionId) console.log(`(note : 1 séance de test créée — le device ne peut pas la supprimer, c'est voulu)`);
+  if (sessionOk) console.log(`(note : 1 séance de test créée — le device ne peut pas la supprimer/relire, c'est voulu)`);
   if (failures > 0) { console.error(`✖ DEVICE MAL RESTREINT : ${failures} échec(s).`); process.exit(1); }
   console.log("✓ Device correctement restreint (droits minimaux respectés).");
 }

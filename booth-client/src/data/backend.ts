@@ -159,9 +159,13 @@ export class BoothBackend {
   async saveSession(snapshot: { session: Session; plays: readonly Play[] }): Promise<void> {
     if (!supabase || !this.cfg) return;
     const s = snapshot.session;
-    const { data, error } = await supabase
+    // Id généré CÔTÉ BORNE : on n'a pas besoin de relire la ligne (RETURNING), ce qui
+    // évite d'exiger une policy SELECT sur `sessions` pour le device (droits minimaux, CIN-002).
+    const sessionId = crypto.randomUUID();
+    const { error } = await supabase
       .from("sessions")
       .insert({
+        id: sessionId,
         organization_id: this.cfg.orgId,
         booth_id: this.cfg.boothId,
         started_at: new Date(s.startedAt).toISOString(),
@@ -170,14 +174,11 @@ export class BoothBackend {
         unlock_method: s.unlockMethod,
         amount_cents: s.amount != null ? Math.round(s.amount) : null,
         payment_provider_ref: s.paymentProviderRef,
-      })
-      .select("id")
-      .single();
-    if (error || !data) {
-      console.error("[booth] remontée séance :", error?.message);
+      });
+    if (error) {
+      console.error("[booth] remontée séance :", error.message);
       return;
     }
-    const sessionId = String((data as { id: string }).id);
     if (snapshot.plays.length > 0) {
       const rows = snapshot.plays.map((p) => ({
         organization_id: this.cfg!.orgId,
