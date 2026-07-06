@@ -202,6 +202,8 @@ export class FleetStore {
   private releases: Release[] = [];
   private boothUpdates: BoothUpdate[] = [];
   private orgs: OrgSummary[] = [];
+  // Feature gating (CIN-080) : entitlements par org (souscription + modules). Absent = tout ON.
+  private entitlements = new Map<string, { subscriptionType: string; enabledModules: string[] }>();
   private identity: CurrentIdentity | null = null;
   private authed = false;
   private listeners = new Set<Listener>();
@@ -286,6 +288,15 @@ export class FleetStore {
         themeId: settings.themeId ?? null,
       };
     });
+    // Entitlements (CIN-080) : gracieux si 0011 pas encore appliquée (table absente → tout ON).
+    this.entitlements = new Map();
+    const { data: ents } = await supabase!.from("org_entitlements").select("*");
+    for (const e of (ents ?? []) as Array<Record<string, unknown>>) {
+      this.entitlements.set(String(e.organization_id), {
+        subscriptionType: String(e.subscription_type ?? "demo"),
+        enabledModules: Array.isArray(e.enabled_modules) ? (e.enabled_modules as string[]) : [],
+      });
+    }
     // Supports physiques + présence des médias (F8 : envoi batch, couverture cabine).
     const { data: locations } = await supabase!.from("storage_locations").select("*");
     this.storageLocations = (locations ?? []).map(rowToStorageLocation);
@@ -452,6 +463,40 @@ export class FleetStore {
   /** Devise de la vue courante : celle de l'org active ; EUR par défaut (global_admin). */
   activeCurrency(): string {
     return this.orgCurrency(this.identity?.activeOrganizationId);
+  }
+
+  // ── Feature gating / modules (CIN-080, F18) ─────────────────────────────────
+  /** Souscription + modules d'une org. Absent (pas de ligne / 0011 non appliquée) = tout ON. */
+  entitlementFor(orgId: string | null | undefined): { subscriptionType: string; enabledModules: string[] } | null {
+    return orgId ? (this.entitlements.get(orgId) ?? null) : null;
+  }
+
+  /** L'org a-t-elle ce module ? Défaut ouvert (pas d'entitlement = tous les modules). */
+  hasModule(orgId: string | null | undefined, key: string): boolean {
+    const e = orgId ? this.entitlements.get(orgId) : null;
+    return e ? e.enabledModules.includes(key) : true;
+  }
+
+  /** Module accordé pour l'org active ? Le global_admin voit tout. */
+  activeHasModule(key: string): boolean {
+    if (this.isGlobalAdmin) return true;
+    return this.hasModule(this.identity?.activeOrganizationId, key);
+  }
+
+  /** Écrit la souscription + les modules d'une org. RLS : global_admin uniquement. */
+  async saveEntitlements(orgId: string, patch: { subscriptionType?: string; enabledModules?: string[] }): Promise<{ ok: boolean; error?: string }> {
+    if (!supabase) return { ok: false, error: "hors ligne" };
+    const current = this.entitlements.get(orgId);
+    const row = {
+      organization_id: orgId,
+      subscription_type: patch.subscriptionType ?? current?.subscriptionType ?? "demo",
+      enabled_modules: patch.enabledModules ?? current?.enabledModules ?? [],
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from("org_entitlements").upsert(row, { onConflict: "organization_id" });
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
   }
 
   // ── Gestion d'organisation (menu Organisation — RBAC, invitations, paiement) ─

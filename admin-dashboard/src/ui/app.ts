@@ -70,7 +70,7 @@ export class App {
         : this.view === "revenue"
           ? revenuePage(this.store)
           : this.view === "rights"
-            ? rightsPage(this.store, () => this.render())
+            ? (this.store.activeHasModule("rights") ? rightsPage(this.store, () => this.render()) : this.overview())
             : this.view === "sessions"
               ? sessionsPage(this.store)
               : this.view === "maintenance"
@@ -140,7 +140,9 @@ export class App {
             navItem("Vue d'ensemble", "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
             navItem("Médias", "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", this.view === "media", () => this.setView("media")),
             navItem("Revenus", "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6", this.view === "revenue", () => this.setView("revenue")),
-            navItem("Droits & redevances", "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", this.view === "rights", () => this.setView("rights")),
+            this.store.activeHasModule("rights")
+              ? navItem("Droits & redevances", "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", this.view === "rights", () => this.setView("rights"))
+              : navItem("Droits & redevances", "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", false, undefined, true),
             navItem("Sessions", "M8 4v16M16 4v16M4 8h16M4 16h16", this.view === "sessions", () => this.setView("sessions")),
             navItem("Maintenance", "M12 3l1.5 3.5l3.5 1.5l-3.5 1.5l-1.5 3.5l-1.5 -3.5l-3.5 -1.5l3.5 -1.5zM6 14l.7 1.8l1.8 .7l-1.8 .7l-.7 1.8l-.7 -1.8l-1.8 -.7l1.8 -.7z", this.view === "maintenance", () => this.setView("maintenance")),
             navItem("Organisation", "M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16", this.view === "settings", () => this.setView("settings")),
@@ -356,7 +358,18 @@ export class App {
 }
 
 // ── Helpers de navigation ────────────────────────────────────────────────────
-function navItem(label: string, path: string, active: boolean, onClick?: () => void): HTMLElement {
+function navItem(label: string, path: string, active: boolean, onClick?: () => void, locked?: boolean): HTMLElement {
+  // Module non accordé (CIN-080) : item visible mais GRISÉ + cadenas (upsell), non cliquable.
+  if (locked) {
+    const lockPath = "M6 11V7a4 4 0 0 1 8 0v4M5 11h10a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1H5a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1z";
+    const link = el("a", { class: "nav-link disabled text-secondary opacity-75", href: "#", "aria-disabled": "true", title: "Module non inclus dans votre offre — contactez Cinematon pour l'activer" }, [
+      el("span", { class: "nav-link-icon" }, [icon(path, 20)]),
+      el("span", { class: "nav-link-title" }, [label]),
+      el("span", { class: "nav-link-icon ms-auto" }, [icon(lockPath, 16)]),
+    ]);
+    link.addEventListener("click", (e) => e.preventDefault());
+    return el("li", { class: "nav-item" }, [link]);
+  }
   const link = el("a", { class: `nav-link ${active ? "active" : ""}`, href: "#" }, [
     el("span", { class: "nav-link-icon" }, [icon(path, 20)]),
     el("span", { class: "nav-link-title" }, [label]),
