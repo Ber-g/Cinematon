@@ -167,7 +167,7 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
   const b: Booth =
     existing ??
     ({
-      id: `booth-${crypto.randomUUID().slice(0, 8)}`,
+      id: crypto.randomUUID(), // vrai UUID (la colonne booths.id est uuid côté Supabase)
       label: "",
       location: "",
       health: "operational",
