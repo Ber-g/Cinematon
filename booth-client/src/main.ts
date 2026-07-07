@@ -6,6 +6,13 @@ import { BoothBackend } from "./data/backend";
 import { setCatalog } from "./domain/catalog";
 import type { Play, Session } from "./domain/types";
 import { App } from "./ui/app";
+import { WifiManager } from "./setup/wifi";
+import {
+  LocalStorageAccessJournal,
+  LocalStorageAccessStore,
+  seedDemoAccessTable,
+} from "./setup/accessCache";
+import { OperatorMenu, type OperatorSettingsHooks } from "./setup/operatorMenu";
 
 // Point d'entrée. C'est ICI, et nulle part ailleurs, qu'on choisit les implémentations
 // concrètes (déverrouillage, reco) et qu'on branche — ou non — le backend Supabase :
@@ -23,9 +30,11 @@ async function main(): Promise<void> {
   const backend = new BoothBackend();
   let boothId = FALLBACK_BOOTH_ID;
   let organizationId = FALLBACK_ORG_ID;
+  let online = false;
   let sink: ((s: { session: Session; plays: readonly Play[] }) => void) | undefined;
 
   if (backend.isConfigured && (await backend.init())) {
+    online = true;
     boothId = backend.boothId;
     organizationId = backend.organizationId;
     await backend.reportHeartbeat(BOOTH_VERSION); // remonte version + dernier contact
@@ -57,6 +66,47 @@ async function main(): Promise<void> {
   );
 
   app.start();
+
+  // ── Menu opérateur cabine (F17 volet A, CIN-070/073) ──────────────────────────
+  // Surface de service par-dessus le parcours, gardée par une auth OFFLINE (PIN).
+  // Wi-Fi/réglages/redémarrage = hooks (stubs en dev ; services locaux réels différés
+  // CIN-071/072). La table d'accès viendra du back-office ; en DEV seulement on la
+  // seed avec des comptes de démo (jamais en build de production).
+  const accessStore = new LocalStorageAccessStore();
+  const accessJournal = new LocalStorageAccessJournal();
+  if (import.meta.env.DEV && !accessStore.load()) {
+    accessStore.save(await seedDemoAccessTable(organizationId, boothId));
+    console.info("[booth] table d'accès de DÉMO chargée (dev) · op PIN 246810 / admin PIN 135790");
+  }
+
+  let volume = 70;
+  let brightness = 100;
+  const settings: OperatorSettingsHooks = {
+    getVolume: () => volume,
+    setVolume: (v) => {
+      volume = v;
+    },
+    getBrightness: () => brightness,
+    setBrightness: (v) => {
+      brightness = v;
+      // Effet tangible en dev : la vraie luminosité passera par un service local.
+      document.documentElement.style.filter = v === 100 ? "" : `brightness(${v}%)`;
+    },
+    restart: () => {
+      // Stub : sur la cabine réelle → service local (systemd/OS). En dev on recharge.
+      console.info("[booth] redémarrage demandé (stub dev)");
+      location.reload();
+    },
+  };
+
+  const operator = new OperatorMenu({
+    store: accessStore,
+    journal: accessJournal,
+    wifi: new WifiManager(),
+    settings,
+    status: () => ({ boothId, orgId: organizationId, version: BOOTH_VERSION, online }),
+  });
+  operator.attachRevealGesture(document.body);
 }
 
 void main();
