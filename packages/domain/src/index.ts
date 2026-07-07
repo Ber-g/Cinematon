@@ -174,6 +174,75 @@ export interface Booth {
   readonly maintenanceHour?: number;
 }
 
+// ── Notifications (F15) ──────────────────────────────────────────────────────
+// Modèle piloté par CATALOGUE : `type` est une clé libre du registry ci-dessous,
+// jamais un enum figé en base → ajouter un type = 0 migration. Préférences à
+// l'échelle du USER (globales, tous orgs confondus). Livraison MVP = in-app.
+export type NotificationSeverity = "critical" | "warning" | "info";
+export type NotificationChannel = "in_app" | "email" | "push" | "sms";
+
+/** Entrée du catalogue de types de notification (définition, pas instance). */
+export interface NotificationTypeDef {
+  readonly key: string;
+  /** Regroupement pour la page de réglages (ex. "Cabines", "Paiements"). */
+  readonly category: string;
+  readonly label: string;
+  readonly severity: NotificationSeverity;
+  /** Canaux cochés par défaut tant que le user n'a pas d'override. */
+  readonly defaultChannels: readonly NotificationChannel[];
+  /** Rôles pouvant recevoir/voir ce type ; vide = tous les rôles. */
+  readonly roleScope: readonly OrgRole[];
+  /** Réservé au global_admin (debug/sécurité) — invisible pour les opérateurs. */
+  readonly adminOnly?: boolean;
+}
+
+/** Une notification délivrée à un user (instance). */
+export interface Notification {
+  readonly id: string;
+  readonly userId: string;
+  readonly organizationId: string | null;
+  readonly type: string;
+  readonly severity: NotificationSeverity;
+  readonly title: string;
+  readonly body: string;
+  readonly boothId: string | null;
+  readonly data: Record<string, unknown>;
+  readonly readAt: number | null;
+  readonly createdAt: number;
+}
+
+/** Préférence GLOBALE (per-user) pour un type. Absente ⇒ défauts du catalogue.
+ *  `channels` vide ⇒ notif désactivée (muette) pour ce type. */
+export interface NotificationPreference {
+  readonly userId: string;
+  readonly type: string;
+  readonly channels: readonly NotificationChannel[];
+}
+
+/**
+ * CATALOGUE des types de notification — source unique consommée par le rendu de
+ * la cloche ET la page de réglages. Amorcé avec des types dérivés de la
+ * télémétrie existante ; la liste définitive sera fournie plus tard. Ajouter une
+ * entrée ici suffit : aucun changement de schéma ni d'UI requis.
+ */
+export const NOTIFICATION_TYPES: readonly NotificationTypeDef[] = [
+  { key: "booth_offline", category: "Cabines", label: "Cabine hors ligne", severity: "critical", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "storage_low", category: "Cabines", label: "Stockage faible", severity: "warning", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "temperature_high", category: "Cabines", label: "Température élevée", severity: "warning", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "payment_failed", category: "Paiements", label: "Paiement en échec", severity: "warning", defaultChannels: ["in_app"], roleScope: ["super_user", "manager"] },
+  { key: "update_available", category: "Maintenance", label: "Mise à jour disponible", severity: "info", defaultChannels: ["in_app"], roleScope: ["super_user", "manager"] },
+];
+
+/** Résout les canaux effectifs d'un type pour un user (override sinon défaut). */
+export function resolveChannels(
+  typeKey: string,
+  prefs: readonly NotificationPreference[],
+): readonly NotificationChannel[] {
+  const override = prefs.find((p) => p.type === typeKey);
+  if (override) return override.channels;
+  return NOTIFICATION_TYPES.find((t) => t.key === typeKey)?.defaultChannels ?? [];
+}
+
 // ── Sessions & lectures ──────────────────────────────────────────────────────
 export interface Session {
   readonly id: string;
