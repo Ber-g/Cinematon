@@ -1,4 +1,4 @@
--- Cinematon — Row-Level Security (Phase 1).
+-- Kioskoscope — Row-Level Security (Phase 1).
 -- L'ISOLATION MULTI-ORG EST IMPOSÉE PAR LA BASE, pas par l'application (exigence
 -- de premier rang F7). Chaque table tenant-scoped n'est lisible/écrivable que
 -- pour les membres de l'organisation ; `global_admin` contourne.

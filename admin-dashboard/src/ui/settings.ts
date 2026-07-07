@@ -5,7 +5,7 @@ import { PERMISSION_MATRIX, ROLE_HINTS, ROLE_LABELS, ROLE_ORDER } from "../domai
 import { el } from "./dom";
 
 // Menu Organisation (hub à onglets, patterns SaaS classiques) : Général, Membres,
-// Invitations, Rôles & permissions, Cabines, Paiement. La gestion (écriture) est
+// Invitations, Rôles & permissions, Kiosks, Paiement. La gestion (écriture) est
 // réservée au super_user (aligné sur la RLS 0006) ; les autres voient en lecture.
 
 type Tab = "general" | "members" | "invites" | "roles" | "booths" | "billing";
@@ -14,7 +14,7 @@ const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
   { key: "members", label: "Membres" },
   { key: "invites", label: "Invitations" },
   { key: "roles", label: "Rôles & permissions" },
-  { key: "booths", label: "Cabines" },
+  { key: "booths", label: "Kiosks" },
   { key: "billing", label: "Paiement" },
 ];
 
@@ -119,10 +119,10 @@ function generalTab(store: FleetStore, org: OrgSummary | null, canManage: boolea
     el("div", { class: "card-body" }, [
       el("div", { class: "row" }, [
         field("Nom", "Nom affiché de l'organisation.", name),
-        field("Type d'organisation", "Nature de l'organisation (bar, festival, événement…). La catégorie du LIEU est réglée sur chaque cabine.", type),
+        field("Type d'organisation", "Nature de l'organisation (bar, festival, événement…). La catégorie du LIEU est réglée sur chaque Kiosk.", type),
         field("Région", "1 organisation = 1 région (code libre).", region),
         field("Devise", "ISO-4217 (EUR, GBP…). Pilote le formatage monétaire.", currency),
-        field("Whitelist (tags d'audience)", "Médias non conformes exclus des cabines.", whitelist),
+        field("Whitelist (tags d'audience)", "Médias non conformes exclus des Kiosks.", whitelist),
         field("Thème", "Identifiant de thème UI (optionnel).", theme),
       ]),
       canManage ? el("div", { class: "d-flex align-items-center gap-3" }, [save, status]) : el("span", {}, []),
@@ -295,7 +295,7 @@ function rolesTab(): HTMLElement {
   ]);
 }
 
-// ── Onglet Cabines associées (lecture) ────────────────────────────────────────
+// ── Onglet Kiosks associées (lecture) ────────────────────────────────────────
 function boothsTab(store: FleetStore, org: OrgSummary | null): HTMLElement {
   if (!org) return el("span", {}, []);
   const booths = store.visibleBooths().filter((b) => b.organizationId === org.id);
@@ -309,8 +309,8 @@ function boothsTab(store: FleetStore, org: OrgSummary | null): HTMLElement {
   return el("div", { class: "card" }, [
     el("div", { class: "table-responsive" }, [
       el("table", { class: "table table-vcenter card-table" }, [
-        el("thead", {}, [el("tr", {}, [el("th", {}, ["Cabine"]), el("th", {}, ["Santé"]), el("th", {}, ["Version"])])]),
-        el("tbody", {}, rows.length ? rows : [el("tr", {}, [el("td", { colspan: "3", class: "text-secondary text-center py-4" }, ["Aucune cabine associée."])])]),
+        el("thead", {}, [el("tr", {}, [el("th", {}, ["Kiosk"]), el("th", {}, ["Santé"]), el("th", {}, ["Version"])])]),
+        el("tbody", {}, rows.length ? rows : [el("tr", {}, [el("td", { colspan: "3", class: "text-secondary text-center py-4" }, ["Aucun Kiosk associé."])])]),
       ]),
     ]),
   ]);

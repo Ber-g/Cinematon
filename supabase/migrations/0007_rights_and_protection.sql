@@ -1,7 +1,7 @@
--- Cinematon — Droits de diffusion & redevances (Concept 2) + Protection du contenu (Concept 1).
+-- Kioskoscope — Droits de diffusion & redevances (Concept 2) + Protection du contenu (Concept 1).
 --
 -- Concept 2 : distributeurs + licences par média (termes : redevance, % partage, plafond de
--- séances, période). Le journal de vision est `plays` (via session.booth_id → par cabine).
+-- séances, période). Le journal de vision est `plays` (via session.booth_id → par Kiosk).
 -- Plafond org-wide par défaut ; **par machine** si `license_booths` est peuplé.
 -- Concept 1 : le média porte le FAIT d'être protégé ; la **DRM est liée à la BORNE SIGNÉE**
 -- (chaque booth = device signé avec sa clé/cert côté serveur — jamais la clé en base).
@@ -43,7 +43,7 @@ create index if not exists media_licenses_org_idx on public.media_licenses (orga
 create index if not exists media_licenses_media_idx on public.media_licenses (media_id);
 
 -- Scope/plafond PAR MACHINE (optionnel). Vide → licence org-wide. Peuplé → ne vaut que pour
--- ces cabines, avec cap par cabine.
+-- ces Kiosks, avec cap par Kiosk.
 create table if not exists public.license_booths (
   id              uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,

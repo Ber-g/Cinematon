@@ -2,7 +2,7 @@
 // le parcours ne connaît que applyMoodTheme/resetMoodTheme — la palette vit ici.
 // Les animations complexes viendront se greffer sur ces mêmes variables.
 
-import type { CanonicalMood } from "@cinematon/domain";
+import type { CanonicalMood } from "@kioskoscope/domain";
 
 export interface MoodPalette {
   /** Couleur d'accent (boutons, halos, éléments actifs). */

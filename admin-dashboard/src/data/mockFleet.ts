@@ -30,7 +30,7 @@ type SeedBooth = Omit<Booth, "organizationId" | "address" | "gpsLat" | "gpsLng" 
 const SEED_BOOTHS: readonly SeedBooth[] = [
   {
     id: "booth-paris-01",
-    label: "Cinematon — Le Perchoir",
+    label: "Kioskoscope — Le Perchoir",
     location: "Paris 11e · Bar Le Perchoir",
     health: "operational",
     indicators: ["powered", "in_use"],
@@ -49,7 +49,7 @@ const SEED_BOOTHS: readonly SeedBooth[] = [
   },
   {
     id: "booth-paris-02",
-    label: "Cinematon — Comptoir Général",
+    label: "Kioskoscope — Comptoir Général",
     location: "Paris 10e · Le Comptoir Général",
     health: "attention",
     indicators: ["powered"],
@@ -68,7 +68,7 @@ const SEED_BOOTHS: readonly SeedBooth[] = [
   },
   {
     id: "booth-lyon-01",
-    label: "Cinematon — La Commune",
+    label: "Kioskoscope — La Commune",
     location: "Lyon 7e · La Commune",
     health: "error",
     indicators: ["powered"],
@@ -87,7 +87,7 @@ const SEED_BOOTHS: readonly SeedBooth[] = [
   },
   {
     id: "booth-lyon-02",
-    label: "Cinematon — Hangar 14",
+    label: "Kioskoscope — Hangar 14",
     location: "Lyon 2e · Hangar 14",
     health: "offline",
     indicators: [],
@@ -103,7 +103,7 @@ const SEED_BOOTHS: readonly SeedBooth[] = [
   },
   {
     id: "booth-marseille-01",
-    label: "Cinematon — Le Molotov",
+    label: "Kioskoscope — Le Molotov",
     location: "Marseille 6e · Le Molotov",
     health: "maintenance",
     indicators: ["powered", "updating"],
@@ -119,7 +119,7 @@ const SEED_BOOTHS: readonly SeedBooth[] = [
   },
   {
     id: "booth-nantes-01",
-    label: "Cinematon — La Cantine",
+    label: "Kioskoscope — La Cantine",
     location: "Nantes · La Cantine du Voyage",
     health: "operational",
     indicators: ["powered"],
@@ -164,7 +164,7 @@ export const MOCK_ORGS: readonly Organization[] = [
 ];
 
 export const MOCK_USERS: readonly User[] = [
-  { id: "user-admin", name: "Admin", email: "admin@cinematon.app", isGlobalAdmin: true },
+  { id: "user-admin", name: "Admin", email: "admin@kioskoscope.com", isGlobalAdmin: true },
   { id: "user-camille", name: "Camille (Le Perchoir)", email: "camille@leperchoir.fr", isGlobalAdmin: false },
 ];
 

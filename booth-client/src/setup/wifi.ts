@@ -1,5 +1,5 @@
 // Gestion Wi-Fi — MOCK. Le navigateur ne peut pas piloter le Wi-Fi de la machine ;
-// sur la cabine réelle (Linux), ce module appellera un service local
+// sur la Kiosk réelle (Linux), ce module appellera un service local
 // (nmcli / wpa_supplicant) via une petite API locale — voir CIN-071. L'interface
 // publique (scan / connect / current) reste identique, seule l'implémentation change.
 
@@ -14,7 +14,7 @@ export interface WifiConnectResult {
   readonly reason?: string;
 }
 
-/** Contrat que la cabine réelle (service nmcli) devra honorer à l'identique. */
+/** Contrat que la Kiosk réelle (service nmcli) devra honorer à l'identique. */
 export interface WifiAdapter {
   readonly current: string | null;
   scan(): Promise<readonly WifiNetwork[]>;

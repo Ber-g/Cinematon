@@ -1,4 +1,4 @@
--- Cinematon — validation humaine d'un média (F8).
+-- Kioskoscope — validation humaine d'un média (F8).
 -- « Vidéo validée par l'opérateur » : trace QUI a validé et QUAND (audit).
 -- `reviewed_at` non nul = média validé. La RLS existante (policy `media_write`,
 -- can_write_org) couvre déjà l'UPDATE de ces colonnes — aucune policy à ajouter.

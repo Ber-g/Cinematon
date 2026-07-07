@@ -1,8 +1,8 @@
 {
-  "name": "cinematon",
+  "name": "kioskoscope",
   "version": "0.1.0",
   "private": true,
-  "description": "Cinematon — monorepo : cabines, back-office, backend, domaine partagé.",
+  "description": "Kioskoscope — monorepo : Kiosks, back-office, backend, domaine partagé.",
   "workspaces": [
     "packages/*",
     "booth-client",

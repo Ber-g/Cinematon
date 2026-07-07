@@ -1,8 +1,8 @@
 {
-  "name": "@cinematon/domain",
+  "name": "@kioskoscope/domain",
   "version": "0.1.0",
   "private": true,
-  "description": "Modèle de domaine canonique partagé (cabines, back-office, backend).",
+  "description": "Modèle de domaine canonique partagé (Kiosks, back-office, backend).",
   "type": "module",
   "types": "./src/index.ts",
   "exports": {

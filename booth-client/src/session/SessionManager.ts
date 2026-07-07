@@ -1,6 +1,6 @@
 import type { Film, Play, PlaySource, Session, UnlockMethod } from "../domain/types";
 
-// Gère le cycle de vie d'une session côté cabine : création, enregistrement des
+// Gère le cycle de vie d'une session côté Kiosk : création, enregistrement des
 // films lancés (Play), clôture. Pour l'instant tout est en mémoire ; la remontée
 // vers le backend viendra plus tard (aucune dépendance réseau ici).
 
@@ -18,7 +18,7 @@ export function generateShareToken(): string {
 }
 
 function randomId(prefix: string): string {
-  // Identifiant local lisible ; unicité suffisante pour une cabine unique.
+  // Identifiant local lisible ; unicité suffisante pour une Kiosk unique.
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 

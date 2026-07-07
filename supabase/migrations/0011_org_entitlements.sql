@@ -1,4 +1,4 @@
--- Cinematon — feature gating par organisation (CIN-080, F18).
+-- Kioskoscope — feature gating par organisation (CIN-080, F18).
 --
 -- Fondation de la modularité SaaS : chaque org a un TYPE DE SOUSCRIPTION + une liste de
 -- MODULES activés, pilotés par le SUPER-ADMIN uniquement. L'org lit sa config en read-only

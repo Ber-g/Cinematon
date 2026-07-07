@@ -1,4 +1,4 @@
--- Cinematon — page publique de partage de séance (CIN-020, F5).
+-- Kioskoscope — page publique de partage de séance (CIN-020, F5).
 --
 -- Le QR de fin de séance pointe /s/{share_token}. Une Edge Function sert cette route
 -- (service_role, contourne la RLS). Pour éviter qu'une erreur d'implémentation ne fuite

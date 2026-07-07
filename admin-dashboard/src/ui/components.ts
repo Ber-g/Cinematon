@@ -27,7 +27,7 @@ export function connectionBadge(booth: Booth): HTMLElement {
 
 /**
  * Statut de connectivité déduit de la FRAÎCHEUR du heartbeat (F3 : détecter une panne
- * < 5 min). Indépendant du champ `health` stocké — une cabine « opérationnelle » mais
+ * < 5 min). Indépendant du champ `health` stocké — une Kiosk « opérationnelle » mais
  * silencieuse est en fait hors-ligne.
  */
 export function heartbeatBadge(lastHeartbeatAt: number): HTMLElement {
@@ -133,7 +133,7 @@ export function statusDistribution(booths: readonly Booth[]): HTMLElement {
   ]);
 }
 
-// ── Carte cabine ──────────────────────────────────────────────────────────────
+// ── Carte Kiosk ──────────────────────────────────────────────────────────────
 export function boothCard(booth: Booth, onOpen: (id: string) => void): HTMLElement {
   const card = el("div", { class: "card h-100 card-link cursor-pointer", role: "button", tabindex: "0" }, [
     el("div", { class: "card-body" }, [
@@ -169,7 +169,7 @@ export function boothCard(booth: Booth, onOpen: (id: string) => void): HTMLEleme
   return card;
 }
 
-// ── Tableau des cabines (triable) ─────────────────────────────────────────────
+// ── Tableau des Kiosks (triable) ─────────────────────────────────────────────
 export type SortKey = "label" | "health" | "connection" | "sessions" | "revenue" | "version" | "heartbeat";
 export interface SortState {
   readonly key: SortKey;

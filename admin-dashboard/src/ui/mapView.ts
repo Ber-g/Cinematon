@@ -6,7 +6,7 @@ import { t } from "../i18n";
 import { healthMeta } from "../domain/status";
 
 // Carte de la flotte (F11) : pastilles colorées par santé, popup label/lieu/adresse.
-// Lecture seule ici ; la POSE de la pin se fait dans la fiche cabine (drawer).
+// Lecture seule ici ; la POSE de la pin se fait dans la fiche Kiosk (drawer).
 
 const HEALTH_HEX: Record<string, string> = {
   operational: "#2fb344",
@@ -26,7 +26,7 @@ export function mapPage(store: FleetStore): HTMLElement {
   return el("div", {}, [
     el("h2", { class: "page-title mb-1" }, [t("page.map")]),
     el("p", { class: "text-secondary mb-3" }, [
-      `${geo.length} cabine(s) localisée(s)` + (noGeo.length ? ` · ${noGeo.length} sans coordonnées (posez la pin dans la fiche cabine).` : "."),
+      `${geo.length} Kiosk(s) localisée(s)` + (noGeo.length ? ` · ${noGeo.length} sans coordonnées (posez la pin dans la fiche Kiosk).` : "."),
     ]),
     el("div", { class: "card" }, [el("div", { class: "card-body p-2" }, [mapDiv])]),
     noGeo.length

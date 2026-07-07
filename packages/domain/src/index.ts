@@ -1,4 +1,4 @@
-// @cinematon/domain — modèle de domaine CANONIQUE partagé par toutes les apps
+// @kioskoscope/domain — modèle de domaine CANONIQUE partagé par toutes les apps
 // (booth-client, admin-dashboard, fleet-api). Source de vérité unique des entités
 // et énumérations. Aligné V2 : multi-organisations, isolation par `organizationId`.
 //
@@ -90,7 +90,7 @@ export interface Media {
 
 // ── Vocabulaire d'humeurs (F6) ───────────────────────────────────────────────
 // SOURCE UNIQUE de la taxonomie d'humeurs, partagée par le back-office (saisie),
-// le moteur de reco (match `Media.moods`) et le thème cabine (palette). Une humeur
+// le moteur de reco (match `Media.moods`) et le thème Kiosk (palette). Une humeur
 // hors de cette liste ne matche NI la reco NI une palette → à ne jamais saisir en
 // texte libre. Choix @design : 7 humeurs à température/saturation cohérentes.
 export const CANONICAL_MOODS = [
@@ -122,7 +122,7 @@ export interface MediaInstance {
   readonly storageLocationId: string;
 }
 
-// ── Cabines (Booth) ──────────────────────────────────────────────────────────
+// ── Kiosks (Booth) ──────────────────────────────────────────────────────────
 export interface DailyStat {
   readonly date: string; // ISO "YYYY-MM-DD"
   readonly sessions: number;
@@ -163,7 +163,7 @@ export interface Booth {
   address: string;
   gpsLat: number | null;
   gpsLng: number | null;
-  /** Catégorie du LIEU où est posée la cabine (bar, musée, festival…). Propre à la cabine. */
+  /** Catégorie du LIEU où est posée la Kiosk (bar, musée, festival…). Propre à la Kiosk. */
   venueType: string | null;
   notes: string;
   /** Machine signée (DRM) : epoch ms de signature du device, `null` si non signée. */
@@ -184,7 +184,7 @@ export type NotificationChannel = "in_app" | "email" | "push" | "sms";
 /** Entrée du catalogue de types de notification (définition, pas instance). */
 export interface NotificationTypeDef {
   readonly key: string;
-  /** Regroupement pour la page de réglages (ex. "Cabines", "Paiements"). */
+  /** Regroupement pour la page de réglages (ex. "Kiosks", "Paiements"). */
   readonly category: string;
   readonly label: string;
   readonly severity: NotificationSeverity;
@@ -226,9 +226,9 @@ export interface NotificationPreference {
  * entrée ici suffit : aucun changement de schéma ni d'UI requis.
  */
 export const NOTIFICATION_TYPES: readonly NotificationTypeDef[] = [
-  { key: "booth_offline", category: "Cabines", label: "Cabine hors ligne", severity: "critical", defaultChannels: ["in_app"], roleScope: [] },
-  { key: "storage_low", category: "Cabines", label: "Stockage faible", severity: "warning", defaultChannels: ["in_app"], roleScope: [] },
-  { key: "temperature_high", category: "Cabines", label: "Température élevée", severity: "warning", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "booth_offline", category: "Kiosks", label: "Kiosk hors ligne", severity: "critical", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "storage_low", category: "Kiosks", label: "Stockage faible", severity: "warning", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "temperature_high", category: "Kiosks", label: "Température élevée", severity: "warning", defaultChannels: ["in_app"], roleScope: [] },
   { key: "payment_failed", category: "Paiements", label: "Paiement en échec", severity: "warning", defaultChannels: ["in_app"], roleScope: ["super_user", "manager"] },
   { key: "update_available", category: "Maintenance", label: "Mise à jour disponible", severity: "info", defaultChannels: ["in_app"], roleScope: ["super_user", "manager"] },
 ];

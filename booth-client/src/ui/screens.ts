@@ -62,7 +62,7 @@ export function idleScreen(onStart: () => void): ScreenResult {
   return {
     node: screen("idle", [
       el("div", { class: "brand" }, [
-        el("h1", { class: "brand__title" }, ["CINEMATON"]),
+        el("h1", { class: "brand__title" }, ["KIOSKOSCOPE"]),
         el("p", { class: "brand__tagline" }, ["Votre séance de cinéma, rien qu'à vous."]),
       ]),
       start,

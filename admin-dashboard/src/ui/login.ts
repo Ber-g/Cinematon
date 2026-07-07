@@ -11,7 +11,7 @@ export function loginScreen(store: FleetStore): HTMLElement {
 
   const form = el("form", { class: "card card-md" }, [
     el("div", { class: "card-body" }, [
-      el("h1", { class: "text-center mb-1 fw-bold" }, ["CINEMATON"]),
+      el("h1", { class: "text-center mb-1 fw-bold" }, ["KIOSKOSCOPE"]),
       el("p", { class: "text-secondary text-center mb-4" }, ["Back-office — connexion"]),
       error,
       el("div", { class: "mb-3" }, [el("label", { class: "form-label" }, ["Email"]), email]),

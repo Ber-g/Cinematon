@@ -1,6 +1,6 @@
--- Cinematon — catégorie de LIEU par cabine (F11 / Phase 5).
+-- Kioskoscope — catégorie de LIEU par Kiosk (F11 / Phase 5).
 --
--- Le « type de lieu » (bar, musée, festival…) est une propriété de la CABINE (là où elle est
+-- Le « type de lieu » (bar, musée, festival…) est une propriété de la Kiosk (là où elle est
 -- posée), pas de l'organisation. `organizations.type` reste le type d'ORGANISATION.
 -- (Adresse postale + GPS + notes existent déjà sur `booths`.)
 --

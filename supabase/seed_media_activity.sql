@@ -1,9 +1,9 @@
--- Cinematon — données d'activité MÉDIA de démo (facultatif, à passer après seed.sql).
+-- Kioskoscope — données d'activité MÉDIA de démo (facultatif, à passer après seed.sql).
 -- Objectif : que le dashboard médias (F8) affiche de vraies valeurs (top 10 lectures)
--- et que l'envoi batch ait des cibles (un support de stockage par cabine).
+-- et que l'envoi batch ait des cibles (un support de stockage par Kiosk).
 --
--- Crée : 1 disque local par cabine · des sessions sur 14 j · des lectures (plays)
--- tirées au hasard parmi les médias de la MÊME organisation que la cabine.
+-- Crée : 1 disque local par Kiosk · des sessions sur 14 j · des lectures (plays)
+-- tirées au hasard parmi les médias de la MÊME organisation que la Kiosk.
 -- Idempotent-ish : ne fait rien si des lectures existent déjà.
 --
 -- ⚠️ À appliquer sur Supabase (SQL editor), après 0001/0002 + seed.sql.
@@ -15,7 +15,7 @@ begin
     return;
   end if;
 
-  -- 1 disque local par cabine (cible par défaut de l'envoi batch).
+  -- 1 disque local par Kiosk (cible par défaut de l'envoi batch).
   insert into public.storage_locations (organization_id, booth_id, type, label, capacity_bytes, free_bytes)
   select b.organization_id, b.id, 'local', 'Disque interne', 512000000000, 300000000000
   from public.booths b
@@ -23,7 +23,7 @@ begin
     select 1 from public.storage_locations sl where sl.booth_id = b.id and sl.type = 'local'
   );
 
-  -- Sessions : ~8 par cabine, réparties sur 14 jours. Uniquement pour les cabines
+  -- Sessions : ~8 par Kiosk, réparties sur 14 jours. Uniquement pour les Kiosks
   -- dont l'organisation possède au moins un média (sinon pas de lecture possible).
   insert into public.sessions (organization_id, booth_id, started_at, ended_at, share_token, unlock_method)
   select b.organization_id, b.id,

@@ -1,4 +1,4 @@
--- Cinematon — Notifications & préférences (F15, « prépare le terrain »).
+-- Kioskoscope — Notifications & préférences (F15, « prépare le terrain »).
 -- Modèle piloté par un CATALOGUE code (registry TS) : `type` est une clé libre,
 -- pas un enum figé → ajouter un type ne nécessite AUCUNE migration.
 -- Préférences à l'échelle du USER (globales, tous orgs confondus) — décision produit.

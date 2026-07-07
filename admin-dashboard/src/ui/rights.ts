@@ -4,7 +4,7 @@ import { el, formatMoney, icon } from "./dom";
 import { t } from "../i18n";
 
 // Menu Droits & redevances (F9) : journal de vision (`plays`) confronté aux licences.
-// Par film : distributeur, séances utilisées / plafond (org-wide ou par cabine), redevance
+// Par film : distributeur, séances utilisées / plafond (org-wide ou par Kiosk), redevance
 // estimée, statut. Édition de licence (dont plafond PAR MACHINE). CRUD distributeurs.
 // L'application du plafond côté borne est différée (booth non connecté) — ici c'est le suivi.
 
@@ -46,11 +46,11 @@ function render(store: FleetStore, rep: RightsReport, reload: () => void): HTMLE
   const cur = rep.currency;
   const filmRows = rep.rows.map((r) => {
     const st = STATUS[r.status];
-    const capText = r.maxScreenings != null ? `${r.screeningsUsed} / ${r.maxScreenings}` : r.capScope === "per_booth" ? `${r.screeningsUsed} (par cabine)` : `${r.screeningsUsed} / ∞`;
+    const capText = r.maxScreenings != null ? `${r.screeningsUsed} / ${r.maxScreenings}` : r.capScope === "per_booth" ? `${r.screeningsUsed} (par Kiosk)` : `${r.screeningsUsed} / ∞`;
     const gauge = r.maxScreenings != null
       ? el("div", { class: "progress progress-sm mt-1" }, [el("div", { class: `progress-bar ${r.status === "over_cap" ? "bg-red" : ""}`, style: `width:${Math.min(100, Math.round((r.screeningsUsed / Math.max(1, r.maxScreenings)) * 100))}%`, role: "progressbar" }, [])])
       : el("span", {}, []);
-    // Détail par cabine (si scope par machine ou plusieurs cabines).
+    // Détail par Kiosk (si scope par machine ou plusieurs Kiosks).
     const perBooth = r.perBooth.length > 0 && (r.capScope === "per_booth" || r.perBooth.length > 1)
       ? el("div", { class: "text-secondary small mt-1" }, r.perBooth.map((pb) => el("div", {}, [`${pb.boothLabel} : ${pb.used}${pb.cap != null ? ` / ${pb.cap}` : ""}`])))
       : el("span", {}, []);
@@ -72,7 +72,7 @@ function render(store: FleetStore, rep: RightsReport, reload: () => void): HTMLE
   return el("div", {}, [
     el("div", { class: "mb-3" }, [
       el("h2", { class: "page-title m-0" }, [t("page.rights")]),
-      el("div", { class: "text-secondary" }, ["Journal de vision (séances) confronté aux licences. L'application du plafond côté borne viendra quand les cabines seront connectées."]),
+      el("div", { class: "text-secondary" }, ["Journal de vision (séances) confronté aux licences. L'application du plafond côté borne viendra quand les Kiosks seront connectés."]),
     ]),
     el("div", { class: "row row-cards g-2 mb-3" }, [
       kpiTile("Redevances estimées", formatMoney(rep.totalOwedCents, cur), "teal", "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6"),
@@ -154,7 +154,7 @@ function openLicenseModal(store: FleetStore, mediaId: string, title: string, onD
   const from = el("input", { class: "form-control", type: "date", value: existing?.validFrom ?? "" }) as HTMLInputElement;
   const to = el("input", { class: "form-control", type: "date", value: existing?.validTo ?? "" }) as HTMLInputElement;
 
-  // Plafond par machine (optionnel) : cocher une cabine + cap facultatif.
+  // Plafond par machine (optionnel) : cocher une Kiosk + cap facultatif.
   const perBoothToggle = el("input", { class: "form-check-input", type: "checkbox", ...(currentLb.length > 0 ? { checked: "checked" } : {}) }) as HTMLInputElement;
   const boothInputs = new Map<string, { on: HTMLInputElement; cap: HTMLInputElement }>();
   const boothList = el("div", { class: `list-group ${currentLb.length > 0 ? "" : "d-none"}` }, booths.map((b) => {

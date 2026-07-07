@@ -1,8 +1,8 @@
 {
-  "name": "cinematon-booth-client",
+  "name": "kioskoscope-booth-client",
   "version": "0.1.0",
   "private": true,
-  "description": "Cinematon booth-client — parcours kiosque. Tourne dans une fenêtre navigateur en dev, en Chromium --kiosk sur la machine dédiée.",
+  "description": "Kioskoscope booth-client — parcours kiosque. Tourne dans une fenêtre navigateur en dev, en Chromium --kiosk sur la machine dédiée.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cinematon/domain": "*",
+    "@kioskoscope/domain": "*",
     "@supabase/supabase-js": "^2.45.0",
     "qrcode": "^1.5.4"
   },

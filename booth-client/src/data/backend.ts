@@ -1,13 +1,13 @@
 import type { Film, Play, Session } from "../domain/types";
 import { supabase } from "./supabase";
 
-// Adaptateur backend de la cabine : lit le catalogue réel (médias de son org) et
+// Adaptateur backend de la Kiosk : lit le catalogue réel (médias de son org) et
 // remonte les séances/lectures vers Supabase. La borne = un DEVICE authentifié
 // (compte membre de l'org) → la RLS scope automatiquement lecture et écriture.
 //
 // ⚠️ Sécurité (@qa, à durcir avant la rue) : pour le prototype, le compte-device peut
 // être un compte à droits d'écriture (super_user/manager). À terme : un rôle `device`
-// dédié + une policy d'INSERT minimale (sessions/plays de SA cabine uniquement).
+// dédié + une policy d'INSERT minimale (sessions/plays de SA Kiosk uniquement).
 
 interface BoothConfig {
   readonly boothId: string;
@@ -60,7 +60,7 @@ function rowToFilm(row: Record<string, unknown>): Film {
 export class BoothBackend {
   private readonly cfg = readConfig();
 
-  /** La cabine est-elle branchée sur Supabase (config présente + client) ? */
+  /** La Kiosk est-elle branchée sur Supabase (config présente + client) ? */
   get isConfigured(): boolean {
     return this.cfg !== null && supabase !== null;
   }
@@ -82,7 +82,7 @@ export class BoothBackend {
     return true;
   }
 
-  /** Remonte l'état vivant de la cabine : version logicielle + dernier contact (F3). */
+  /** Remonte l'état vivant de la Kiosk : version logicielle + dernier contact (F3). */
   async reportHeartbeat(version: string): Promise<void> {
     if (!supabase || !this.cfg) return;
     const { error } = await supabase
@@ -93,9 +93,9 @@ export class BoothBackend {
   }
 
   /**
-   * Updater embarqué (F10, prototype) : applique les déploiements en attente pour CETTE cabine
+   * Updater embarqué (F10, prototype) : applique les déploiements en attente pour CETTE Kiosk
    * dont la fenêtre est échue. Ne pouvant pas swapper le code d'une web-app, on SIMULE
-   * l'application (statut → `applied`, version cabine = version de la release). Le vrai
+   * l'application (statut → `applied`, version Kiosk = version de la release). Le vrai
    * updater embarqué (télécharger/redémarrer/watchdog/rollback) viendra avec le déploiement OS.
    * Renvoie la version courante après application.
    */
@@ -141,8 +141,8 @@ export class BoothBackend {
 
   /**
    * Enforcement des droits (F15, CIN-010) : renvoie les `media_id` à EXCLURE du catalogue de
-   * CETTE cabine — licence expirée / pas encore valide, cabine non autorisée, ou plafond de
-   * séances atteint (par cabine ou org-wide). Calculé côté serveur (fonction `security definer`
+   * CETTE Kiosk — licence expirée / pas encore valide, Kiosk non autorisée, ou plafond de
+   * séances atteint (par Kiosk ou org-wide). Calculé côté serveur (fonction `security definer`
    * `blocked_media_for_booth`) : la borne n'a pas besoin de lire licences/plays.
    */
   async loadBlockedMedia(): Promise<Set<string>> {

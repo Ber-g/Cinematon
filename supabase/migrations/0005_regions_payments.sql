@@ -1,10 +1,10 @@
--- Cinematon — régions & intégrations de paiement (anticipation phase rue).
+-- Kioskoscope — régions & intégrations de paiement (anticipation phase rue).
 --
 -- Modèle : **1 organisation = 1 région** (mono-région par org ; échappatoire future =
 -- descendre `region` au niveau `booth` si un jour une org couvre plusieurs régions).
 -- La RLS par org isole donc déjà chaque région. `currency` pilote le formatage.
 --
--- Paiement : le RUNTIME est déjà abstrait (UnlockAdapter côté cabine + transactions.
+-- Paiement : le RUNTIME est déjà abstrait (UnlockAdapter côté Kiosk + transactions.
 -- provider/provider_ref). Ici on ajoute la COUCHE DE CONFIGURATION : quel provider
 -- utilise chaque org, avec quels réglages NON-SECRETS.
 --

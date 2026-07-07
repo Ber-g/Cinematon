@@ -1,8 +1,8 @@
 // Types du back-office. Le modèle canonique (Booth, Organization, Media, enums…)
-// vient du domaine partagé `@cinematon/domain` ; ici, uniquement l'état de session
+// vient du domaine partagé `@kioskoscope/domain` ; ici, uniquement l'état de session
 // UI spécifique au back-office.
 
-import type { OrgRole, User } from "@cinematon/domain";
+import type { OrgRole, User } from "@kioskoscope/domain";
 
 export type {
   HealthStatus,
@@ -22,7 +22,7 @@ export type {
   StorageType,
   StorageLocation,
   MediaInstance,
-} from "@cinematon/domain";
+} from "@kioskoscope/domain";
 
 /**
  * Identité active dans le back-office (mock). `global_admin` voit tout ; sinon la

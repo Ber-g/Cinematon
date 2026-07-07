@@ -1,6 +1,6 @@
-# Cinematon — booth-client
+# Kioskoscope — booth-client
 
-Application kiosque : le parcours vécu par le spectateur dans la cabine. Écran
+Application kiosque : le parcours vécu par le spectateur dans la Kiosk. Écran
 d'accueil → déverrouillage → choix par humeur/durée → recommandation → lecture
 (plusieurs films) → récap + QR de partage.
 

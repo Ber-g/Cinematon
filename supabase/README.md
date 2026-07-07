@@ -1,6 +1,6 @@
-# Cinematon — Backend (Supabase)
+# Kioskoscope — Backend (Supabase)
 
-Le « backend » de Cinematon = **Supabase** (PostgreSQL managé + Auth + API
+Le « backend » de Kioskoscope = **Supabase** (PostgreSQL managé + Auth + API
 auto-générée + Edge Functions) plutôt qu'un serveur à maintenir. L'**isolation
 multi-organisations** est imposée par la base via **Row-Level Security (RLS)** —
 pas par l'application (exigence de sécurité de premier rang).
@@ -54,7 +54,7 @@ update public.users set is_global_admin = true where email = 'toi@exemple.com';
 ## À venir (Phase 1, suite)
 
 - **Storage vidéos** : Cloudflare R2 (S3-compatible, egress gratuit) — bucket privé.
-- **Edge Functions** (TypeScript/Deno) : heartbeat cabines, page publique
+- **Edge Functions** (TypeScript/Deno) : heartbeat Kiosks, page publique
   `/s/{share_token}`, envoi batch de médias, signature de fichiers, conso LTE.
 - **Branchement du dashboard** sur le client Supabase (données réelles → remplace
   le mock, RLS applique l'isolation).

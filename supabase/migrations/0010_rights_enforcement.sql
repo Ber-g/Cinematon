@@ -1,10 +1,10 @@
--- Cinematon — enforcement des droits/plafonds côté borne (CIN-010, F15).
+-- Kioskoscope — enforcement des droits/plafonds côté borne (CIN-010, F15).
 --
 -- La borne doit EXCLURE de son catalogue les films dont les termes du distributeur ne sont
--- plus respectés POUR ELLE : licence expirée / pas encore valide, cabine non autorisée
--- (license_booths peuplé sans cette borne), ou plafond de séances atteint (par cabine si
+-- plus respectés POUR ELLE : licence expirée / pas encore valide, Kiosk non autorisée
+-- (license_booths peuplé sans cette borne), ou plafond de séances atteint (par Kiosk si
 -- scoping machine, sinon org-wide). Le journal de vision est `plays` (séance complétée),
--- rattaché à la cabine via `sessions.booth_id`.
+-- rattaché à la Kiosk via `sessions.booth_id`.
 --
 -- Exposé via une fonction `security definer` : la borne n'a PAS besoin de lire licences/
 -- plays/sessions (surface minimale, cf. CIN-002). L'autorisation est vérifiée dans la
@@ -51,7 +51,7 @@ as $$
       or (l.valid_from is not null and l.valid_from > current_date)
       -- scoping machine peuplé mais CETTE borne absente → non autorisée
       or (exists (select 1 from public.license_booths x where x.license_id = l.id) and lb.booth_id is null)
-      -- plafond par cabine atteint
+      -- plafond par Kiosk atteint
       or (lb.booth_id is not null and lb.max_screenings is not null and coalesce(c.booth_used, 0) >= lb.max_screenings)
       -- plafond org-wide atteint (quand pas de scoping machine)
       or (

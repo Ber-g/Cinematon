@@ -1,4 +1,4 @@
-// Cinematon — smoke-test F8 (backend) : vérifie de bout en bout ce que le dashboard
+// Kioskoscope — smoke-test F8 (backend) : vérifie de bout en bout ce que le dashboard
 // médias vient d'activer, avec une session super_user RÉELLE (RLS active) :
 //   - Storage : upload + suppression d'un objet sous les policies `0003` (chemin {org}/{hash})
 //   - media_instances : insert/lecture/suppression sous RLS (can_write_org)
@@ -70,20 +70,20 @@ async function main() {
   const password = requireEnv("ISO_A_PASSWORD");
 
   const client = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
-  console.log("Cinematon — smoke-test F8 (backend)");
+  console.log("Kioskoscope — smoke-test F8 (backend)");
   const { error: signErr } = await client.auth.signInWithPassword({ email, password });
   if (signErr) {
     console.error(`✖ Connexion échouée (${email}) : ${signErr.message}`);
     process.exit(2);
   }
 
-  // Contexte : une cabine + un média visibles (RLS → org de l'utilisateur).
+  // Contexte : une Kiosk + un média visibles (RLS → org de l'utilisateur).
   const { data: booths } = await client.from("booths").select("id, organization_id").limit(1);
   const booth = booths?.[0];
   const { data: media } = await client.from("media").select("id, organization_id, content_hash").limit(1);
   const mediaRow = media?.[0];
   if (!booth || !mediaRow) {
-    console.error("✖ Prérequis : il faut au moins 1 cabine et 1 média dans l'org du compte (seed.sql).");
+    console.error("✖ Prérequis : il faut au moins 1 Kiosk et 1 média dans l'org du compte (seed.sql).");
     process.exit(2);
   }
   const org = booth.organization_id;

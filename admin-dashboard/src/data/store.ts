@@ -68,7 +68,7 @@ export interface Release {
   readonly notes: string;
   readonly createdAt: number;
 }
-/** État de déploiement d'une release sur une cabine. */
+/** État de déploiement d'une release sur une Kiosk. */
 export interface BoothUpdate {
   readonly id: string;
   readonly boothId: string;
@@ -78,7 +78,7 @@ export interface BoothUpdate {
   readonly appliedAt: number | null;
   readonly error: string;
 }
-/** Ligne de rapport MAJ par cabine. */
+/** Ligne de rapport MAJ par Kiosk. */
 export interface UpdatesRow {
   readonly boothId: string;
   readonly boothLabel: string;
@@ -175,9 +175,9 @@ export interface SubtitleRecord {
 // Les getters restent SYNCHRONES (lisent le cache) ; les écritures et le chargement
 // sont async et déclenchent `emit()` → re-render.
 
-const LS_BOOTHS = "cinematon.admin.booths.v2";
-const LS_IDENTITY = "cinematon.admin.identity.v2";
-const LS_LAYOUT = "cinematon.admin.layout.v1";
+const LS_BOOTHS = "kioskoscope.admin.booths.v2";
+const LS_IDENTITY = "kioskoscope.admin.identity.v2";
+const LS_LAYOUT = "kioskoscope.admin.layout.v1";
 
 type Listener = () => void;
 
@@ -269,7 +269,7 @@ export class FleetStore {
       activeOrganizationId: isGlobal ? null : (first?.organization_id ?? null),
       role: isGlobal ? null : ((first?.role as OrgRole) ?? null),
     };
-    // Cabines + médias : la RLS scope déjà par organisation → on charge tel quel.
+    // Kiosks + médias : la RLS scope déjà par organisation → on charge tel quel.
     const { data: booths } = await supabase!.from("booths").select("*");
     this.booths = (booths ?? []).map(rowToBooth);
     const { data: media } = await supabase!.from("media").select("*");
@@ -297,7 +297,7 @@ export class FleetStore {
         enabledModules: Array.isArray(e.enabled_modules) ? (e.enabled_modules as string[]) : [],
       });
     }
-    // Supports physiques + présence des médias (F8 : envoi batch, couverture cabine).
+    // Supports physiques + présence des médias (F8 : envoi batch, couverture Kiosk).
     const { data: locations } = await supabase!.from("storage_locations").select("*");
     this.storageLocations = (locations ?? []).map(rowToStorageLocation);
     const { data: instances } = await supabase!.from("media_instances").select("id,media_id,storage_location_id");
@@ -350,10 +350,10 @@ export class FleetStore {
   }
 
   /**
-   * Complète chaque cabine avec ses agrégats (non portés par `booths`) :
+   * Complète chaque Kiosk avec ses agrégats (non portés par `booths`) :
    * historique 14 j + sessions/bande passante du jour (daily_stats), revenu du
    * jour (transactions), journaux (alerts). Toutes ces requêtes sont scopées par
-   * la RLS. Peu de requêtes groupées plutôt qu'une par cabine.
+   * la RLS. Peu de requêtes groupées plutôt qu'une par Kiosk.
    */
   private async enrichBooths(): Promise<void> {
     if (this.booths.length === 0) return;
@@ -728,8 +728,8 @@ export class FleetStore {
     return { ok: true };
   }
 
-  // ── Supports & couverture cabine (F8) ────────────────────────────────────────
-  /** Cabines (visibles) sur lesquelles un média est physiquement présent. */
+  // ── Supports & couverture Kiosk (F8) ────────────────────────────────────────
+  /** Kiosks (visibles) sur lesquelles un média est physiquement présent. */
   boothIdsForMedia(mediaId: string): Set<string> {
     const locById = new Map(this.storageLocations.map((l) => [l.id, l.boothId]));
     const boothIds = new Set<string>();
@@ -741,16 +741,16 @@ export class FleetStore {
     return boothIds;
   }
 
-  /** Support cible d'une cabine pour un envoi : privilégie le disque local. */
+  /** Support cible d'une Kiosk pour un envoi : privilégie le disque local. */
   private targetStorageLocation(boothId: string): StorageLocation | undefined {
     const forBooth = this.storageLocations.filter((l) => l.boothId === boothId);
     return forBooth.find((l) => l.type === "local") ?? forBooth[0];
   }
 
   /**
-   * Envoi batch : place un lot de médias sur plusieurs cabines en une action
+   * Envoi batch : place un lot de médias sur plusieurs Kiosks en une action
    * (crée des `media_instances`). Les présences déjà existantes sont ignorées ;
-   * une cabine sans support de stockage connu est comptée en `skipped`.
+   * une Kiosk sans support de stockage connu est comptée en `skipped`.
    */
   async sendMediaToBooths(
     mediaIds: readonly string[],
@@ -869,7 +869,7 @@ export class FleetStore {
     return { ok: true };
   }
 
-  /** Déploie une release sur des cabines : crée les `booth_updates` (fenêtre = maintenance_hour ; urgent = tout de suite). */
+  /** Déploie une release sur des Kiosks : crée les `booth_updates` (fenêtre = maintenance_hour ; urgent = tout de suite). */
   async pushRelease(orgId: string, releaseId: string, boothIds: readonly string[]): Promise<{ ok: boolean; error?: string }> {
     if (this.mode !== "supabase") return { ok: true };
     const rel = this.releases.find((r) => r.id === releaseId);
@@ -891,7 +891,7 @@ export class FleetStore {
   }
 
   /** Change le statut d'un déploiement (ops/simulation en attendant l'updater embarqué) : `applied` monte la
-   *  version de la cabine ; `rolled_back`/`failed` créent une alerte. */
+   *  version de la Kiosk ; `rolled_back`/`failed` créent une alerte. */
   async setUpdateStatus(updateId: string, status: BoothUpdate["status"]): Promise<{ ok: boolean; error?: string }> {
     if (this.mode !== "supabase") return { ok: true };
     const bu = this.boothUpdates.find((u) => u.id === updateId);
@@ -923,7 +923,7 @@ export class FleetStore {
     return { ok: true };
   }
 
-  /** Rapport MAJ par cabine (version courante, dernier contact, fenêtre, dernier déploiement). */
+  /** Rapport MAJ par Kiosk (version courante, dernier contact, fenêtre, dernier déploiement). */
   updatesReport(): UpdatesReport {
     const rows: UpdatesRow[] = this.visibleBooths().map((b) => {
       const ups = this.boothUpdates
@@ -1007,8 +1007,8 @@ export class FleetStore {
 
   /**
    * Rapport droits & redevances (F9) : par média, séances (plays `completed`) vs plafond
-   * (org-wide ou par cabine), redevance estimée, statut. Le journal de vision est `plays`,
-   * rattaché à la cabine via `session.booth_id`.
+   * (org-wide ou par Kiosk), redevance estimée, statut. Le journal de vision est `plays`,
+   * rattaché à la Kiosk via `session.booth_id`.
    */
   async rightsReport(): Promise<RightsReport> {
     const emptyReport: RightsReport = { rows: [], totalOwedCents: 0, overCapCount: 0, noLicenseCount: 0, currency: this.activeCurrency() };

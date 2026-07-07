@@ -16,7 +16,7 @@ import { settingsPage } from "./settings";
 import { mapPage, mountFleetMap } from "./mapView";
 import { t, getLang, setLang, LANGS, onLangChange } from "../i18n";
 
-const THEME_KEY = "cinematon.admin.theme.v1";
+const THEME_KEY = "kioskoscope.admin.theme.v1";
 
 interface FilterState {
   readonly statuses: readonly HealthStatus[];
@@ -125,7 +125,7 @@ export class App {
     });
   }
 
-  /** Cabines visibles → filtrées → triées. */
+  /** Kiosks visibles → filtrées → triées. */
   private currentBooths(): Booth[] {
     let list = this.store.visibleBooths();
     if (this.filter && this.filter.statuses.length > 0) {
@@ -141,7 +141,7 @@ export class App {
         el("button", { class: "navbar-toggler", type: "button", "data-bs-toggle": "collapse", "data-bs-target": "#sidebar-menu", "aria-label": "Menu" }, [
           el("span", { class: "navbar-toggler-icon" }, []),
         ]),
-        el("h1", { class: "navbar-brand fs-2 fw-bold m-0" }, ["CINEMATON"]),
+        el("h1", { class: "navbar-brand fs-2 fw-bold m-0" }, ["KIOSKOSCOPE"]),
         el("div", { class: "collapse navbar-collapse", id: "sidebar-menu" }, [
           el("ul", { class: "navbar-nav pt-lg-2 w-100" }, [
             navItem(t("nav.overview"), "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
@@ -282,7 +282,7 @@ export class App {
   private applyFilter(kpi: Kpi): void {
     if (!kpi.filter) return;
     if (kpi.filter.length === 0 || this.isKpiActive(kpi)) {
-      this.filter = null; // "Cabines" ou re-clic sur le filtre actif = tout afficher
+      this.filter = null; // "Kiosks" ou re-clic sur le filtre actif = tout afficher
     } else {
       this.filter = { statuses: kpi.filter, label: kpi.label, color: kpi.color };
     }

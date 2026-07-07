@@ -1,4 +1,4 @@
-// Menu opérateur cabine (CIN-070) — couche modale par-dessus le parcours visiteur.
+// Menu opérateur Kiosk (CIN-070) — couche modale par-dessus le parcours visiteur.
 //
 // Ce n'est PAS un écran de la state-machine du parcours : c'est une surface de service
 // qui se superpose (z-index élevé) et se ferme sans perturber la séance en cours. On y
@@ -21,7 +21,7 @@ export interface OperatorStatus {
   readonly online: boolean;
 }
 
-/** Actions matériel/OS — stubs en dev, services locaux réels sur la cabine (CIN-071/072). */
+/** Actions matériel/OS — stubs en dev, services locaux réels sur la Kiosk (CIN-071/072). */
 export interface OperatorSettingsHooks {
   getVolume(): number;
   setVolume(pct: number): void;
@@ -107,7 +107,7 @@ export class OperatorMenu {
     this.pin = "";
   }
 
-  // ── Inactivité : ne jamais laisser le menu ouvert sur une cabine publique ────
+  // ── Inactivité : ne jamais laisser le menu ouvert sur une Kiosk publique ────
   private bumpInactivity(): void {
     if (this.inactivityTimer !== undefined) clearTimeout(this.inactivityTimer);
     this.inactivityTimer = window.setTimeout(() => this.close(), INACTIVITY_MS);
@@ -172,7 +172,7 @@ export class OperatorMenu {
       if (isLocked()) return;
       const identifier = idInput.value;
       if (!table) {
-        message.textContent = "Aucune table d'accès sur cette cabine. Contactez l'administrateur.";
+        message.textContent = "Aucune table d'accès sur ce Kiosk. Contactez l'administrateur.";
         return;
       }
       if (identifier.trim() === "" || this.pin.length < 4) {
@@ -413,7 +413,7 @@ export class OperatorMenu {
       ]);
     };
 
-    const restartBtn = el("button", { class: "op-btn op-btn--danger", type: "button" }, ["Redémarrer la cabine"]);
+    const restartBtn = el("button", { class: "op-btn op-btn--danger", type: "button" }, ["Redémarrer le Kiosk"]);
     const confirmSlot = el("div", { class: "op-confirm" });
     restartBtn.addEventListener("click", () => {
       this.bumpInactivity();
@@ -455,7 +455,7 @@ export class OperatorMenu {
     ]);
     return el("div", { class: "op-status" }, [
       el("div", { class: "op-status-row" }, [el("span", { class: "op-status-k" }, ["Connexion"]), onlineBadge]),
-      row("Cabine", s.boothId),
+      row("Kiosk", s.boothId),
       row("Organisation", s.orgId),
       row("Version logicielle", s.version),
       row("Wi-Fi", this.deps.wifi.current ?? "—"),

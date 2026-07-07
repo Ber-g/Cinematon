@@ -8,7 +8,7 @@ import { el, formatClockTime, formatMoney, icon } from "./dom";
 import { connectionBadge, healthBadge, indicatorChips } from "./components";
 import { timeSeriesChart } from "./chart";
 
-// Détail d'une cabine (offcanvas) + formulaire add/edit (modal). Les OUTILS DE
+// Détail d'une Kiosk (offcanvas) + formulaire add/edit (modal). Les OUTILS DE
 // DEBUG (journaux, redémarrage, push, suppression) ne sont rendus que pour
 // l'opérateur — un gérant de bar ne les voit pas.
 
@@ -113,7 +113,7 @@ export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: 
       el("div", { class: "table-responsive mb-3" }, [
         el("table", { class: "table table-sm table-vcenter" }, [el("tbody", {}, logRows)]),
       ]),
-      el("button", { class: "btn btn-outline-danger w-100", type: "button", "data-action": "delete" }, ["Supprimer cette cabine"]),
+      el("button", { class: "btn btn-outline-danger w-100", type: "button", "data-action": "delete" }, ["Supprimer ce Kiosk"]),
     );
   } else {
     body.push(el("div", { class: "text-secondary small" }, ["Les outils techniques (journaux, redémarrage, push) sont réservés au global admin."]));
@@ -179,7 +179,7 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       telemetry: { uptimePct: 100, temperatureC: 38, storageFreePct: 80, cpuLoadPct: 20, currentFilmTitle: null, connection: "wifi", signalPct: 70 },
       logs: [],
       history: [],
-      // Nouvelle cabine rattachée à l'org active (global_admin → org par défaut).
+      // Nouvelle Kiosk rattachée à l'org active (global_admin → org par défaut).
       organizationId: store.current?.activeOrganizationId ?? "org-perchoir",
       address: "",
       gpsLat: null,
@@ -188,13 +188,13 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       notes: "",
     } satisfies Booth);
 
-  // Catégorie du LIEU où est posée la cabine (propre à la cabine, ≠ type d'organisation).
+  // Catégorie du LIEU où est posée la Kiosk (propre à la Kiosk, ≠ type d'organisation).
   const VENUE_TYPES = ["Bar", "Restaurant", "Café", "Hôtel", "Musée", "Cinéma", "Festival", "Événement", "Tiers-lieu", "Espace public", "Autre"];
 
   const field = (labelText: string, input: HTMLElement): HTMLElement =>
     el("div", { class: "mb-3" }, [el("label", { class: "form-label" }, [labelText]), input]);
 
-  const labelInput = el("input", { class: "form-control", type: "text", value: b.label, placeholder: "Cinematon — Nom du lieu" });
+  const labelInput = el("input", { class: "form-control", type: "text", value: b.label, placeholder: "Kioskoscope — Nom du lieu" });
   const locationInput = el("input", { class: "form-control", type: "text", value: b.location, placeholder: "Ville · Lieu" });
   // Adresse postale : repli quand le GPS est absent/erroné (F11).
   const addressInput = el("input", { class: "form-control", type: "text", value: b.address, placeholder: "N°, rue, code postal, ville" }) as HTMLInputElement;
@@ -220,7 +220,7 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
   const notesInput = el("textarea", { class: "form-control", rows: "2" }, [b.notes]) as HTMLTextAreaElement;
 
   const form = el("form", {}, [
-    field("Nom de la cabine", labelInput),
+    field("Nom du Kiosk", labelInput),
     field("Emplacement (ville · lieu)", locationInput),
     field("Adresse postale", addressInput),
     field("Catégorie de lieu", venueSelect),
@@ -233,13 +233,13 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
     field("Notes d'accès (où exactement, comment brancher, contact sur place…)", notesInput),
   ]);
 
-  const save = el("button", { class: "btn btn-primary ms-auto", type: "button" }, [isNew ? "Créer la cabine" : "Enregistrer"]);
+  const save = el("button", { class: "btn btn-primary ms-auto", type: "button" }, [isNew ? "Créer le Kiosk" : "Enregistrer"]);
 
   const modalEl = el("div", { class: "modal modal-blur fade", tabindex: "-1" }, [
     el("div", { class: "modal-dialog modal-dialog-centered" }, [
       el("div", { class: "modal-content" }, [
         el("div", { class: "modal-header" }, [
-          el("h3", { class: "modal-title" }, [isNew ? "Nouvelle cabine" : "Modifier la cabine"]),
+          el("h3", { class: "modal-title" }, [isNew ? "Nouveau Kiosk" : "Modifier le Kiosk"]),
           el("button", { class: "btn-close", type: "button", "data-bs-dismiss": "modal" }, []),
         ]),
         el("div", { class: "modal-body" }, [form]),
@@ -255,11 +255,11 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
 
   // ── Carte : drop d'une pin pour la localisation précise (F11) ──────────────
   const DEFAULT_CENTER: [number, number] = [46.6, 2.5]; // France, si aucune coordonnée
-  const pinIcon = L.divIcon({ className: "cinematon-pin", html: '<div style="font-size:26px;line-height:1">📍</div>', iconSize: [26, 26], iconAnchor: [13, 24] });
+  const pinIcon = L.divIcon({ className: "kioskoscope-pin", html: '<div style="font-size:26px;line-height:1">📍</div>', iconSize: [26, 26], iconAnchor: [13, 24] });
   let map: L.Map | null = null;
   let marker: L.Marker | null = null;
   const updateReadout = (): void => {
-    coordReadout.textContent = pickedLat != null && pickedLng != null ? `📍 ${pickedLat.toFixed(5)}, ${pickedLng.toFixed(5)}` : "Aucune pin — cliquez sur la carte pour placer la cabine.";
+    coordReadout.textContent = pickedLat != null && pickedLng != null ? `📍 ${pickedLat.toFixed(5)}, ${pickedLng.toFixed(5)}` : "Aucune pin — cliquez sur la carte pour placer le Kiosk.";
     clearPin.style.display = pickedLat != null ? "" : "none";
   };
   const setPin = (lat: number, lng: number): void => {

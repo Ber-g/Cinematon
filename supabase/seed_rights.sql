@@ -1,4 +1,4 @@
--- Cinematon — données de démo Droits & redevances (facultatif, après 0007 + seed_media_activity).
+-- Kioskoscope — données de démo Droits & redevances (facultatif, après 0007 + seed_media_activity).
 -- Crée un distributeur + des licences sur les médias a1 pour que le rapport montre :
 --   Aurora  → per_screening, plafond 5 (8 séances seedées → « au plafond »)
 --   Vertige → revenue_share 30% (illimité)

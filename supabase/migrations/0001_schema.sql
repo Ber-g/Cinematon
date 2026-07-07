@@ -1,4 +1,4 @@
--- Cinematon — schéma initial (Phase 1).
+-- Kioskoscope — schéma initial (Phase 1).
 -- Modèle multi-organisations. RÈGLE : `organization_id` sur TOUTE table
 -- tenant-scoped (dénormalisé sur les enfants) pour des policies RLS uniformes.
 -- Enums = text + CHECK (évolutif : "rien de rigide"). uuid via gen_random_uuid().
@@ -33,7 +33,7 @@ create table public.memberships (
   unique (user_id, organization_id)
 );
 
--- ── Cabines ──────────────────────────────────────────────────────────────────
+-- ── Kiosks ──────────────────────────────────────────────────────────────────
 create table public.booths (
   id                uuid primary key default gen_random_uuid(),
   organization_id   uuid not null references public.organizations (id) on delete cascade,
@@ -53,7 +53,7 @@ create table public.booths (
 );
 create index on public.booths (organization_id);
 
--- ── Supports de stockage physiques (par cabine) ──────────────────────────────
+-- ── Supports de stockage physiques (par Kiosk) ──────────────────────────────
 create table public.storage_locations (
   id              uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,

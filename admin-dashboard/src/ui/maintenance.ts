@@ -4,7 +4,7 @@ import { el, relativeTime } from "./dom";
 import { t } from "../i18n";
 
 // Menu Maintenance (Phase 4 / F10) : versions logicielles (releases), déploiement vers
-// des cabines, état par cabine (version courante, dernier contact, fenêtre de MAJ,
+// des Kiosks, état par Kiosk (version courante, dernier contact, fenêtre de MAJ,
 // dernier déploiement + rollback). L'updater embarqué (appliquer/rollback réel) est différé —
 // ici on gère le déploiement + un pilotage manuel du statut (ops), et les alertes de rollback.
 
@@ -42,7 +42,7 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
   const newRel = el("button", { class: "btn btn-primary", type: "button" }, ["Nouvelle version"]);
   newRel.addEventListener("click", () => openReleaseModal(store, orgId, reload));
 
-  // ── État par cabine ──
+  // ── État par Kiosk ──
   const boothRows = rep.rows.map((row) => {
     const hourSel = el("select", { class: "form-select form-select-sm w-auto" }, Array.from({ length: 24 }, (_, h) => el("option", { value: String(h), ...(h === row.maintenanceHour ? { selected: "selected" } : {}) }, [`${String(h).padStart(2, "0")}:00`]))) as HTMLSelectElement;
     hourSel.addEventListener("change", () => void store.setMaintenanceHour(row.boothId, Number(hourSel.value)).then((res) => (res.ok ? reload() : alert(res.error ?? "Échec."))));
@@ -94,11 +94,11 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
       ]),
     ]),
     el("div", { class: "card" }, [
-      el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["État des cabines"])]),
+      el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["État des Kiosks"])]),
       el("div", { class: "table-responsive" }, [
         el("table", { class: "table table-vcenter card-table" }, [
-          el("thead", {}, [el("tr", {}, [el("th", {}, ["Cabine"]), el("th", {}, ["Version"]), el("th", {}, ["Dernier contact"]), el("th", {}, ["Fenêtre MAJ"]), el("th", {}, ["Dernier déploiement"]), el("th", {}, [])])]),
-          el("tbody", {}, boothRows.length ? boothRows : [el("tr", {}, [el("td", { colspan: "6", class: "text-secondary text-center py-3" }, ["Aucune cabine."])])]),
+          el("thead", {}, [el("tr", {}, [el("th", {}, ["Kiosk"]), el("th", {}, ["Version"]), el("th", {}, ["Dernier contact"]), el("th", {}, ["Fenêtre MAJ"]), el("th", {}, ["Dernier déploiement"]), el("th", {}, [])])]),
+          el("tbody", {}, boothRows.length ? boothRows : [el("tr", {}, [el("td", { colspan: "6", class: "text-secondary text-center py-3" }, ["Aucun Kiosk."])])]),
         ]),
       ]),
     ]),
@@ -135,14 +135,14 @@ function openDeployModal(store: FleetStore, orgId: string, release: Release, onD
   const deploy = el("button", { class: "btn btn-primary ms-auto", type: "button" }, ["Déployer"]);
   deploy.addEventListener("click", () => {
     const boothIds = [...checks.entries()].filter(([, cb]) => cb.checked).map(([id]) => id);
-    if (boothIds.length === 0) { error.textContent = "Sélectionnez au moins une cabine."; error.classList.remove("d-none"); return; }
+    if (boothIds.length === 0) { error.textContent = "Sélectionnez au moins un Kiosk."; error.classList.remove("d-none"); return; }
     deploy.setAttribute("disabled", "true");
     void store.pushRelease(orgId, release.id, boothIds).then((res) => {
       if (res.ok) { modal.hide(); onDone(); }
       else { deploy.removeAttribute("disabled"); error.textContent = res.error ?? "Échec."; error.classList.remove("d-none"); }
     });
   });
-  const modal = buildModal(`Déployer ${release.version}${release.urgency === "urgent" ? " (urgente)" : ""}`, [error, el("div", { class: "text-secondary mb-2" }, ["Cibler les cabines :"]), booths.length ? list : el("div", { class: "text-secondary" }, ["Aucune cabine."])], deploy);
+  const modal = buildModal(`Déployer ${release.version}${release.urgency === "urgent" ? " (urgente)" : ""}`, [error, el("div", { class: "text-secondary mb-2" }, ["Cibler les Kiosks :"]), booths.length ? list : el("div", { class: "text-secondary" }, ["Aucun Kiosk."])], deploy);
 }
 
 function buildModal(titleText: string, body: Node[], footerBtn: HTMLElement): Modal {

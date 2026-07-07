@@ -1,4 +1,4 @@
--- Cinematon — gestion d'organisation & RBAC (menu Organisation).
+-- Kioskoscope — gestion d'organisation & RBAC (menu Organisation).
 --
 -- Jusqu'ici (0002) un super_user ne pouvait NI voir NI gérer les membres de son org
 -- (memberships/users = self-only ; memberships_write = global_admin only). Cette
@@ -80,7 +80,7 @@ create trigger trg_guard_last_super_user
   for each row execute function public.guard_last_super_user();
 
 -- ── Resserrage : réglages org & paiement = super_user only ────────────────────
--- (contenu/cabines restent super_user+manager via can_write_org ; membres/org/billing
+-- (contenu/Kiosks restent super_user+manager via can_write_org ; membres/org/billing
 --  sont réservés au super_user, pour coller à la matrice de permissions du menu.)
 drop policy if exists organizations_write on public.organizations;
 create policy organizations_write on public.organizations for all

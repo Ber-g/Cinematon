@@ -1,4 +1,4 @@
--- Cinematon — setup des comptes de test d'isolation (à exécuter dans le SQL editor
+-- Kioskoscope — setup des comptes de test d'isolation (à exécuter dans le SQL editor
 -- Supabase, APRÈS avoir créé les 2 utilisateurs dans Authentication → Add user).
 --
 -- Ce script est idempotent (on conflict do nothing) et NE crée PAS les utilisateurs :

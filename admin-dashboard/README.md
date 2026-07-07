@@ -1,7 +1,7 @@
-# Cinematon — admin-dashboard
+# Kioskoscope — admin-dashboard
 
-Back-office de gestion de la flotte de cabines. Vue d'ensemble de l'état des
-cabines (santé, indicateurs, télémétrie), détail par cabine, outils opérateur
+Back-office de gestion de la flotte de Kiosks. Vue d'ensemble de l'état des
+Kiosks (santé, indicateurs, télémétrie), détail par Kiosk, outils opérateur
 (journaux, redémarrage, push de contenu) et gestion des données (ajout/édition).
 
 Stack : **Vite + TypeScript** + **[Tabler](https://tabler.io)** (design system,
@@ -18,16 +18,16 @@ npm run dev            # http://127.0.0.1:5174
 
 ## Deux rôles
 
-- **Opérateur** — voit toutes les cabines + tous les outils (journaux,
+- **Opérateur** — voit toutes les Kiosks + tous les outils (journaux,
   redémarrage à distance, push de contenu, suppression).
-- **Gérant de bar** — ne voit que ses cabines, sans les outils techniques/debug.
+- **Gérant de bar** — ne voit que ses Kiosks, sans les outils techniques/debug.
 
 La bascule de rôle est dans la barre du haut (menu du nom). Le choix est mémorisé.
 
 ## Éditable
 
-- **Données** : bouton « Ajouter une cabine » + « Modifier » dans le détail d'une
-  cabine (nom, emplacement, statut, version, notes). Modifications persistées en
+- **Données** : bouton « Ajouter une Kiosk » + « Modifier » dans le détail d'une
+  Kiosk (nom, emplacement, statut, version, notes). Modifications persistées en
   `localStorage`.
 - **Disposition** : bouton « Éditer la disposition » → les tuiles KPI deviennent
   déplaçables/redimensionnables (Gridstack). La disposition est mémorisée.
@@ -52,4 +52,4 @@ src/
 ## À venir
 
 Remplacer les données mock par des appels au backend `fleet-api` ; suivi des
-téléversements de vidéos vers les cabines (barres de progression).
+téléversements de vidéos vers les Kiosks (barres de progression).

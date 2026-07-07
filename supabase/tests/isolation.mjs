@@ -1,4 +1,4 @@
-// Cinematon — Preuve d'isolation multi-org (RLS).
+// Kioskoscope — Preuve d'isolation multi-org (RLS).
 // @qa : ce test attaque la base avec DEUX sessions authentifiées réelles (clé anon
 // + JWT de chaque compte), JAMAIS en service_role. Le SQL editor de Supabase bypasse
 // la RLS : il ne prouve rien. Ici, chaque requête porte le JWT d'un super_user scoping
@@ -177,7 +177,7 @@ async function main() {
   const clientA = createClient(url, anon, opts);
   const clientB = createClient(url, anon, opts);
 
-  console.log("Cinematon — preuve d'isolation multi-org (RLS)");
+  console.log("Kioskoscope — preuve d'isolation multi-org (RLS)");
   console.log(`Projet   : ${url}`);
   console.log(`Org A    : ${ORG_A}\nOrg B    : ${ORG_B}`);
 

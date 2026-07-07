@@ -1,7 +1,7 @@
 // Auth opérateur OFFLINE (CIN-073, partie borne). Le menu opérateur DOIT s'ouvrir
 // même quand le Wi-Fi est tombé (donc sans Supabase). On ne rejoue donc PAS un login
 // email/mot de passe en ligne : on valide un PIN contre une table d'accès mise en
-// cache localement, poussée par le back-office quand la cabine est en ligne.
+// cache localement, poussée par le back-office quand la Kiosk est en ligne.
 //
 // Le secret est le PIN (jamais stocké en clair) — l'identifiant, lui, est structuré
 // et non secret (ex. « PERCHOIR-CAB001-OP »). On hache le PIN en PBKDF2-SHA256 avec

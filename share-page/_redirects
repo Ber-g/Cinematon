@@ -1,0 +1,3 @@
+# Cloudflare Pages — le chemin /s/{token} sert la page (SPA fallback : le token est
+# lu côté client depuis l'URL, aucune route serveur nécessaire).
+/s/*  /index.html  200

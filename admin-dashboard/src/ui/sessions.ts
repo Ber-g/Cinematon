@@ -2,7 +2,7 @@ import type { FleetStore, SessionRow } from "../data/store";
 import { el, formatMoney, icon } from "./dom";
 import { t } from "../i18n";
 
-// Menu Sessions (F9, 2e tranche) : liste des séances (cabine, date, méthode de
+// Menu Sessions (F9, 2e tranche) : liste des séances (Kiosk, date, méthode de
 // déverrouillage, films joués, montant) + quelques KPI. Données réelles : `sessions`
 // + `plays` (scopées RLS). Complète le menu Revenus pour boucler F9 (hors LTE).
 
@@ -69,7 +69,7 @@ function render(store: FleetStore, rows: readonly SessionRow[]): HTMLElement {
   return el("div", {}, [
     el("div", { class: "mb-3" }, [
       el("h2", { class: "page-title m-0" }, [t("page.sessions")]),
-      el("div", { class: "text-secondary" }, ["Séances et films joués. Les données réelles arriveront quand les cabines seront branchées (ici : séances seedées)."]),
+      el("div", { class: "text-secondary" }, ["Séances et films joués. Les données réelles arriveront quand les Kiosks seront branchées (ici : séances seedées)."]),
     ]),
     el("div", { class: "row row-cards g-2 mb-3" }, [
       kpiTile("Séances", String(rows.length), "purple", "M8 4v16M16 4v16M4 8h16M4 16h16"),
@@ -82,7 +82,7 @@ function render(store: FleetStore, rows: readonly SessionRow[]): HTMLElement {
       el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["Dernières séances"])]),
       el("div", { class: "table-responsive" }, [
         el("table", { class: "table table-vcenter card-table" }, [
-          el("thead", {}, [el("tr", {}, [el("th", {}, ["Date"]), el("th", {}, ["Cabine"]), el("th", {}, ["Méthode"]), el("th", {}, ["Films joués"]), el("th", { class: "text-end" }, ["Montant"])])]),
+          el("thead", {}, [el("tr", {}, [el("th", {}, ["Date"]), el("th", {}, ["Kiosk"]), el("th", {}, ["Méthode"]), el("th", {}, ["Films joués"]), el("th", { class: "text-end" }, ["Montant"])])]),
           el("tbody", {}, tableRows.length ? tableRows : [el("tr", {}, [el("td", { colspan: "5", class: "text-secondary text-center py-4" }, ["Aucune séance."])])]),
         ]),
       ]),

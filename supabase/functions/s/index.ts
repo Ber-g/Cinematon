@@ -1,4 +1,4 @@
-// Cinematon — Edge Function de partage de séance (CIN-020, F5).
+// Kioskoscope — Edge Function de partage de séance (CIN-020, F5).
 //
 // Route publique /s/{token} (le QR de fin de séance). Rend une page HTML récap des
 // films vus + un export CSV importable dans Letterboxd. Tourne en service_role mais
@@ -53,6 +53,15 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'",
 };
 
+// La page récap est servie par un hébergeur statique (Cloudflare Pages) qui consomme
+// cette fonction en JSON cross-origin. Données publiques par token, non-PII → origine *.
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Max-Age": "86400",
+};
+
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
@@ -80,7 +89,7 @@ function htmlPage(rows: RecapRow[], token: string): string {
   return `<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Votre séance Cinematon</title>
+<title>Votre séance Kioskoscope</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -103,13 +112,26 @@ function htmlPage(rows: RecapRow[], token: string): string {
     padding: 12px 20px; border-radius: 10px; }
   .foot { margin-top: 34px; color: #6b7079; font-size: 12px; }
 </style></head><body><main>
-  <div class="brand">Cinematon</div>
+  <div class="brand">Kioskoscope</div>
   <h1>Votre séance</h1>
   <div class="date">${date}</div>
   <ol>${items}</ol>
-  <a class="cta" href="./${esc(token)}.csv" download="cinematon-seance.csv">Exporter vers Letterboxd (CSV)</a>
+  <a class="cta" href="./${esc(token)}.csv" download="kioskoscope-seance.csv">Exporter vers Letterboxd (CSV)</a>
   <div class="foot">Lien privé, non indexé. Aucune donnée personnelle n'est stockée sur cette page.</div>
 </main></body></html>`;
+}
+
+function jsonDoc(rows: RecapRow[]): string {
+  return JSON.stringify({
+    date: rows.length ? isoDate(rows[0].started_at) : null,
+    films: rows.map((r) => ({
+      position: r.position,
+      title: r.title,
+      year: r.year > 0 ? r.year : null,
+      director: r.director || null,
+      source: r.source,
+    })),
+  });
 }
 
 function csvDoc(rows: RecapRow[]): string {
@@ -120,50 +142,67 @@ function csvDoc(rows: RecapRow[]): string {
   return [header, ...lines].join("\n") + "\n";
 }
 
-function notFound(): Response {
+function notFound(wantJson: boolean): Response {
+  if (wantJson) {
+    return new Response(JSON.stringify({ error: "not_found" }), {
+      status: 404,
+      headers: { ...SECURITY_HEADERS, ...CORS_HEADERS, "Content-Type": "application/json; charset=utf-8" },
+    });
+  }
   const body = `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex">
 <title>Séance introuvable</title>
 <body style="font:16px system-ui;background:#0e0f13;color:#f2f3f5;display:grid;place-items:center;height:100vh;margin:0">
-<div style="text-align:center"><div style="letter-spacing:.16em;text-transform:uppercase;color:#8a8f9a;font-size:13px">Cinematon</div>
+<div style="text-align:center"><div style="letter-spacing:.16em;text-transform:uppercase;color:#8a8f9a;font-size:13px">Kioskoscope</div>
 <p>Ce lien de séance n'existe pas ou a expiré.</p></div>`;
   return new Response(body, { status: 404, headers: { ...SECURITY_HEADERS, "Content-Type": "text/html; charset=utf-8" } });
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  // Préflight CORS (la page statique CF Pages consomme l'API en JSON cross-origin).
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: { ...SECURITY_HEADERS, ...CORS_HEADERS } });
+  }
   if (req.method !== "GET") {
-    return new Response("Method Not Allowed", { status: 405, headers: SECURITY_HEADERS });
+    return new Response("Method Not Allowed", { status: 405, headers: { ...SECURITY_HEADERS, ...CORS_HEADERS } });
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
   if (throttled(ip)) {
-    return new Response("Too Many Requests", { status: 429, headers: { ...SECURITY_HEADERS, "Retry-After": "60" } });
+    return new Response("Too Many Requests", { status: 429, headers: { ...SECURITY_HEADERS, ...CORS_HEADERS, "Retry-After": "60" } });
   }
 
-  // Dernier segment du chemin = token, avec suffixe .csv optionnel (ou ?format=csv).
+  // Dernier segment du chemin = token, avec suffixe .csv/.json optionnel (ou ?format=).
   const url = new URL(req.url);
+  const fmt = url.searchParams.get("format");
   let seg = url.pathname.split("/").filter(Boolean).pop() ?? "";
-  let wantCsv = url.searchParams.get("format") === "csv";
-  if (seg.endsWith(".csv")) {
-    wantCsv = true;
-    seg = seg.slice(0, -4);
-  }
+  let wantCsv = fmt === "csv";
+  let wantJson = fmt === "json";
+  if (seg.endsWith(".csv")) { wantCsv = true; seg = seg.slice(0, -4); }
+  else if (seg.endsWith(".json")) { wantJson = true; seg = seg.slice(0, -5); }
   const token = decodeURIComponent(seg);
-  if (!TOKEN_RE.test(token)) return notFound();
+  if (!TOKEN_RE.test(token)) return notFound(wantJson);
 
   const { data, error } = await admin.rpc("session_recap", { p_token: token });
   if (error) {
     console.error("[share] rpc error", error.message);
-    return new Response("Server Error", { status: 500, headers: SECURITY_HEADERS });
+    const h = { ...SECURITY_HEADERS, ...CORS_HEADERS };
+    return new Response(wantJson ? JSON.stringify({ error: "server_error" }) : "Server Error", { status: 500, headers: h });
   }
   const rows = (data ?? []) as RecapRow[];
-  if (rows.length === 0) return notFound();
+  if (rows.length === 0) return notFound(wantJson);
 
+  if (wantJson) {
+    return new Response(jsonDoc(rows), {
+      headers: { ...SECURITY_HEADERS, ...CORS_HEADERS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=300" },
+    });
+  }
   if (wantCsv) {
     return new Response(csvDoc(rows), {
       headers: {
         ...SECURITY_HEADERS,
+        ...CORS_HEADERS,
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="cinematon-seance.csv"',
+        "Content-Disposition": 'attachment; filename="kioskoscope-seance.csv"',
       },
     });
   }

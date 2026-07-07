@@ -1,7 +1,7 @@
--- Cinematon — Mises à jour & résilience (Phase 4, F10), côté modèle + dashboard.
+-- Kioskoscope — Mises à jour & résilience (Phase 4, F10), côté modèle + dashboard.
 --
--- On modélise le DÉPLOIEMENT (quelle version pousser sur quelles cabines, statut,
--- rollback) + la fenêtre de MAJ par cabine. L'AGENT DEVICE (télécharger, appliquer
+-- On modélise le DÉPLOIEMENT (quelle version pousser sur quelles Kiosks, statut,
+-- rollback) + la fenêtre de MAJ par Kiosk. L'AGENT DEVICE (télécharger, appliquer
 -- dans la fenêtre, redémarrer, watchdog, rollback réel) reste côté borne = différé,
 -- mais la borne étant désormais connectée, elle pourra lire ses `booth_updates`.
 --
@@ -18,7 +18,7 @@ create table if not exists public.releases (
 );
 create index if not exists releases_org_idx on public.releases (organization_id);
 
--- ── État de déploiement d'une release sur une cabine ──────────────────────────
+-- ── État de déploiement d'une release sur une Kiosk ──────────────────────────
 create table if not exists public.booth_updates (
   id              uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
@@ -35,7 +35,7 @@ create table if not exists public.booth_updates (
 create index if not exists booth_updates_org_idx on public.booth_updates (organization_id);
 create index if not exists booth_updates_booth_idx on public.booth_updates (booth_id);
 
--- Fenêtre de MAJ par cabine : heure locale (~3h) où les MAJ non urgentes s'appliquent.
+-- Fenêtre de MAJ par Kiosk : heure locale (~3h) où les MAJ non urgentes s'appliquent.
 alter table public.booths
   add column if not exists maintenance_hour int not null default 3;
 

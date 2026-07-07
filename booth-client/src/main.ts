@@ -21,7 +21,7 @@ import { OperatorMenu, type OperatorSettingsHooks } from "./setup/operatorMenu";
 
 const FALLBACK_BOOTH_ID = "booth-proto-01";
 const FALLBACK_ORG_ID = "org-perchoir";
-const BOOTH_VERSION = "0.3.0-proto"; // version logicielle de la cabine (remontée en heartbeat)
+const BOOTH_VERSION = "0.3.0-proto"; // version logicielle de la Kiosk (remontée en heartbeat)
 
 async function main(): Promise<void> {
   const root = document.getElementById("app");
@@ -52,12 +52,11 @@ async function main(): Promise<void> {
     console.info("[booth] mode hors ligne (catalogue factice, sessions en mémoire)");
   }
 
-  // Base de l'URL de partage (QR de fin → /s/{token}). Priorité : override explicite,
-  // sinon l'Edge Function du projet Supabase, sinon le futur domaine public.
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  // Base de l'URL de partage (QR de fin → /s/{token}). La page récap est servie par
+  // Cloudflare Pages (le domaine functions.supabase.co neutralise le HTML). Définir
+  // VITE_SHARE_BASE_URL sur l'URL Pages (…pages.dev) ; défaut = futur domaine public.
   const shareBaseUrl =
-    (import.meta.env.VITE_SHARE_BASE_URL as string | undefined) ??
-    (supabaseUrl ? `${supabaseUrl}/functions/v1` : "https://cinematon.app");
+    (import.meta.env.VITE_SHARE_BASE_URL as string | undefined) ?? "https://my.kioskoscope.com";
 
   const app = new App(
     root,
@@ -74,7 +73,7 @@ async function main(): Promise<void> {
 
   app.start();
 
-  // ── Menu opérateur cabine (F17 volet A, CIN-070/073) ──────────────────────────
+  // ── Menu opérateur Kiosk (F17 volet A, CIN-070/073) ──────────────────────────
   // Surface de service par-dessus le parcours, gardée par une auth OFFLINE (PIN).
   // Wi-Fi/réglages/redémarrage = hooks (stubs en dev ; services locaux réels différés
   // CIN-071/072). La table d'accès viendra du back-office ; en DEV seulement on la
@@ -100,7 +99,7 @@ async function main(): Promise<void> {
       document.documentElement.style.filter = v === 100 ? "" : `brightness(${v}%)`;
     },
     restart: () => {
-      // Stub : sur la cabine réelle → service local (systemd/OS). En dev on recharge.
+      // Stub : sur la Kiosk réelle → service local (systemd/OS). En dev on recharge.
       console.info("[booth] redémarrage demandé (stub dev)");
       location.reload();
     },

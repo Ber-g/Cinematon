@@ -4,7 +4,7 @@ import { t } from "../i18n";
 import { timeSeriesChart } from "./chart";
 
 // Vue Revenus (F9). Agrège les transactions (scopées RLS) : KPI, évolution 30 j,
-// répartition par cabine (et par organisation pour un global_admin), liste des
+// répartition par Kiosk (et par organisation pour un global_admin), liste des
 // dernières transactions. La conso data LTE (F9) est différée en phase rue.
 
 function kpiTile(label: string, value: string, hue: string, iconPath: string): HTMLElement {
@@ -77,7 +77,7 @@ export function revenuePage(store: FleetStore): HTMLElement {
   for (const t of tx) byDay.set(dayOf(t.createdAt), (byDay.get(dayOf(t.createdAt)) ?? 0) + t.amountCents);
   const points = days.map((d) => ({ date: d, value: byDay.get(d) ?? 0 }));
 
-  // Répartition par cabine.
+  // Répartition par Kiosk.
   const byBooth = new Map<string, number>();
   for (const t of tx) byBooth.set(t.boothId, (byBooth.get(t.boothId) ?? 0) + t.amountCents);
   const boothRows = [...byBooth.entries()]
@@ -99,7 +99,7 @@ export function revenuePage(store: FleetStore): HTMLElement {
       ? el("div", { class: "card-body text-secondary text-center py-5" }, ["Aucune transaction pour l'instant."])
       : el("div", { class: "table-responsive" }, [
           el("table", { class: "table table-vcenter card-table" }, [
-            el("thead", {}, [el("tr", {}, [el("th", {}, ["Date"]), el("th", {}, ["Cabine"]), el("th", { class: "text-end" }, ["Montant"]), el("th", {}, ["Fournisseur"])])]),
+            el("thead", {}, [el("tr", {}, [el("th", {}, ["Date"]), el("th", {}, ["Kiosk"]), el("th", { class: "text-end" }, ["Montant"]), el("th", {}, ["Fournisseur"])])]),
             el("tbody", {}, recent.map((t) =>
               el("tr", {}, [
                 el("td", { class: "text-secondary text-nowrap" }, [new Date(t.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })]),
@@ -124,7 +124,7 @@ export function revenuePage(store: FleetStore): HTMLElement {
     ]),
     el("div", { class: "card mb-3" }, [el("div", { class: "card-body" }, [timeSeriesChart({ title: "Revenu — 30 derniers jours", points, kind: "area", hue: "var(--tblr-teal)", formatValue: (n) => formatMoney(n, viewCurrency) })])]),
     el("div", { class: "row row-cards mb-3" }, [
-      el("div", { class: showOrgBreakdown ? "col-lg-6" : "col-12" }, [breakdownCard("Revenu par cabine", boothRows)]),
+      el("div", { class: showOrgBreakdown ? "col-lg-6" : "col-12" }, [breakdownCard("Revenu par Kiosk", boothRows)]),
       ...(showOrgBreakdown ? [el("div", { class: "col-lg-6" }, [breakdownCard("Revenu par organisation", orgRows)])] : []),
     ]),
     el("div", { class: "card" }, [el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["Dernières transactions"])]), txTable]),

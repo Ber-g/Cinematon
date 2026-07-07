@@ -1,8 +1,8 @@
 {
-  "name": "cinematon-admin-dashboard",
+  "name": "kioskoscope-admin-dashboard",
   "version": "0.1.0",
   "private": true,
-  "description": "Cinematon admin-dashboard — back-office de gestion de la flotte de cabines (Tabler).",
+  "description": "Kioskoscope admin-dashboard — back-office de gestion de la flotte de Kiosks (Tabler).",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cinematon/domain": "*",
+    "@kioskoscope/domain": "*",
     "@supabase/supabase-js": "^2.45.4",
     "@tabler/core": "^1.0.0",
     "bootstrap": "^5.3.3",

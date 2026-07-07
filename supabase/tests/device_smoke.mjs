@@ -1,7 +1,7 @@
-// Cinematon — smoke-test du compte DEVICE (CIN-002). Prouve que la borne, avec son
-// compte device dédié (sans membership, lié à sa cabine par booths.device_user_id), a
+// Kioskoscope — smoke-test du compte DEVICE (CIN-002). Prouve que la borne, avec son
+// compte device dédié (sans membership, lié à sa Kiosk par booths.device_user_id), a
 // EXACTEMENT les droits minimaux : lire son catalogue + écrire ses séances/heartbeat,
-// et RIEN d'autre (ni membres, ni revenus, ni écriture médias, ni autre cabine/org).
+// et RIEN d'autre (ni membres, ni revenus, ni écriture médias, ni autre Kiosk/org).
 //
 // Prérequis : compte device créé + `booths.device_user_id` renseigné (voir README.md).
 // Env : ISO_DEVICE_EMAIL/PASSWORD + ISO_DEVICE_BOOTH_ID + ISO_DEVICE_ORG_ID.
@@ -49,7 +49,7 @@ async function main() {
   const boothId = req("ISO_DEVICE_BOOTH_ID"), orgId = req("ISO_DEVICE_ORG_ID");
 
   const c = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
-  console.log("Cinematon — smoke device (CIN-002)");
+  console.log("Kioskoscope — smoke device (CIN-002)");
   const { error: signErr } = await c.auth.signInWithPassword({ email, password });
   if (signErr) { console.error(`✖ Connexion device échouée : ${signErr.message}`); process.exit(2); }
 
@@ -70,16 +70,16 @@ async function main() {
     // Sans .select() : le device écrit mais ne relit PAS (aucune policy SELECT sur booths —
     // droits minimaux). L'insert de séance ci-dessous prouve que `current_device_booth()` matche.
     const { error } = await c.from("booths").update({ last_heartbeat_at: new Date().toISOString() }).eq("id", boothId);
-    assert(!error, `heartbeat : update de SA cabine — ${error?.message ?? "ok"}`);
+    assert(!error, `heartbeat : update de SA Kiosk — ${error?.message ?? "ok"}`);
   }
   let sessionOk = false;
   {
     // Id généré côté client (pas de RETURNING → pas besoin de SELECT). Le with-check
-    // `booth_id = current_device_booth()` valide le lien device→cabine.
+    // `booth_id = current_device_booth()` valide le lien device→Kiosk.
     const token = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
     const { error } = await c.from("sessions").insert({ id: crypto.randomUUID(), organization_id: orgId, booth_id: boothId, share_token: token, unlock_method: "mock" });
     sessionOk = !error;
-    assert(!error, `insérer une séance de SA cabine — ${error?.message ?? "ok"}`);
+    assert(!error, `insérer une séance de SA Kiosk — ${error?.message ?? "ok"}`);
   }
 
   console.log("\n▸ Ce que le device NE DOIT PAS pouvoir faire");
@@ -103,12 +103,12 @@ async function main() {
   {
     const fake = "00000000-0000-0000-0000-0000000000ff";
     const { data, error } = await c.from("sessions").insert({ organization_id: orgId, booth_id: fake, share_token: "x" + Date.now(), unlock_method: "mock" }).select();
-    assert(error != null || (data ?? []).length === 0, `INSERT séance pour une AUTRE cabine refusé`);
+    assert(error != null || (data ?? []).length === 0, `INSERT séance pour une AUTRE Kiosk refusé`);
   }
   {
     const fake = "00000000-0000-0000-0000-0000000000ff";
     const { data } = await c.from("booths").update({ last_heartbeat_at: new Date().toISOString() }).eq("id", fake).select();
-    assert((data ?? []).length === 0, `UPDATE d'une AUTRE cabine → 0 ligne`);
+    assert((data ?? []).length === 0, `UPDATE d'une AUTRE Kiosk → 0 ligne`);
   }
 
   console.log(`\n── Résultat : ${checks - failures}/${checks} vérifications OK ──`);

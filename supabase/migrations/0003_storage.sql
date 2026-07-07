@@ -1,4 +1,4 @@
--- Cinematon — Stockage des fichiers médias (Supabase Storage).
+-- Kioskoscope — Stockage des fichiers médias (Supabase Storage).
 -- Bucket PRIVÉ `media`. Les fichiers sont rangés par organisation :
 --   chemin = "{organization_id}/{content_hash}"
 -- → l'isolation storage réutilise la même logique que la RLS des tables :

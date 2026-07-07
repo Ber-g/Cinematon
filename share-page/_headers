@@ -1,0 +1,8 @@
+# Cloudflare Pages — en-têtes de la page publique de partage.
+# Non indexable, pas de referer, CSP stricte (page auto-suffisante ; seul appel réseau
+# autorisé = l'Edge Function Supabase).
+/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src https://uftynwijspggwjhgnwqm.supabase.co; img-src data:; base-uri 'none'; form-action 'none'

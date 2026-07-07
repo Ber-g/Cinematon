@@ -1,21 +1,21 @@
 // Cache local de la table d'accès opérateur + journal d'accès (CIN-073, partie borne).
 //
-// La cabine garde en local la dernière table d'accès poussée par le back-office, pour
+// La Kiosk garde en local la dernière table d'accès poussée par le back-office, pour
 // valider un opérateur HORS LIGNE. Ici l'implémentation dev/navigateur utilise
-// localStorage ; sur la cabine réelle, le même contrat (`AccessStore`) sera honoré par
+// localStorage ; sur la Kiosk réelle, le même contrat (`AccessStore`) sera honoré par
 // un fichier CHIFFRÉ au repos (le seam est déjà là — voir CIN-073). Ne pas régresser
 // l'interface.
 //
 // Le journal d'accès est bufferisé localement (qui / quand / quelle action), même hors
-// ligne, puis remonté au back-office quand la cabine est en ligne (`drain()`).
+// ligne, puis remonté au back-office quand la Kiosk est en ligne (`drain()`).
 
 import { buildAccessEntry, type AccessTable } from "./auth";
 
-const TABLE_KEY = "cinematon.booth.access.v1";
-const JOURNAL_KEY = "cinematon.booth.accesslog.v1";
+const TABLE_KEY = "kioskoscope.booth.access.v1";
+const JOURNAL_KEY = "kioskoscope.booth.accesslog.v1";
 const JOURNAL_CAP = 500;
 
-/** Contrat de stockage de la table d'accès (même côté cabine réelle, chiffré). */
+/** Contrat de stockage de la table d'accès (même côté Kiosk réelle, chiffré). */
 export interface AccessStore {
   load(): AccessTable | null;
   save(table: AccessTable): void;
