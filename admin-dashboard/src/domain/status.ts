@@ -1,4 +1,5 @@
 import type { BoothIndicator, ConnectionType, HealthStatus } from "./types";
+import { t } from "../i18n";
 
 // Vocabulaire de statut (@design). Chaque statut de santé porte : un libellé
 // clair, une couleur sémantique Tabler (déjà accessible AA), et une icône —
@@ -32,21 +33,16 @@ const HEALTH_META: Readonly<Record<HealthStatus, StatusMeta>> = {
 };
 
 export function healthMeta(status: HealthStatus): StatusMeta {
-  return HEALTH_META[status];
+  // Libellé/hint traduits (i18n) ; couleur + icône restent statiques.
+  return { ...HEALTH_META[status], label: t(`health.${status}`), hint: t(`health.${status}.hint`) };
 }
 
 export function allHealthStatuses(): readonly HealthStatus[] {
   return ["operational", "attention", "error", "offline", "maintenance"];
 }
 
-const INDICATOR_LABEL: Readonly<Record<BoothIndicator, string>> = {
-  powered: "Sous tension",
-  in_use: "En cours d'utilisation",
-  updating: "Mise à jour",
-};
-
 export function indicatorLabel(ind: BoothIndicator): string {
-  return INDICATOR_LABEL[ind];
+  return t(`indicator.${ind}`);
 }
 
 // Connexion réseau : libellé + icône (Wifi ondulé / antenne LTE).

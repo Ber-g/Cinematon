@@ -35,10 +35,10 @@ export function heartbeatBadge(lastHeartbeatAt: number): HTMLElement {
   const age = lastHeartbeatAt > 0 ? Date.now() - lastHeartbeatAt : Number.POSITIVE_INFINITY;
   const s =
     age < 5 * min
-      ? { label: "En ligne", color: "green", hint: "Heartbeat récent (< 5 min)" }
+      ? { label: t("hb.online"), color: "green", hint: t("hb.online.hint") }
       : age < 30 * min
-        ? { label: "Silencieuse", color: "yellow", hint: "Pas de heartbeat depuis > 5 min" }
-        : { label: lastHeartbeatAt > 0 ? "Hors-ligne" : "Jamais vue", color: "red", hint: "Pas de heartbeat depuis > 30 min" };
+        ? { label: t("hb.stale"), color: "yellow", hint: t("hb.stale.hint") }
+        : { label: lastHeartbeatAt > 0 ? t("hb.offline") : t("hb.never"), color: "red", hint: t("hb.offline.hint") };
   return el("span", { class: `badge bg-${s.color}-lt`, title: s.hint }, [s.label]);
 }
 
@@ -128,7 +128,7 @@ export function statusDistribution(booths: readonly Booth[]): HTMLElement {
   );
 
   return el("div", { class: "card h-100" }, [
-    el("div", { class: "card-header" }, [el("h3", { class: "card-title" }, ["Répartition de la flotte"])]),
+    el("div", { class: "card-header" }, [el("h3", { class: "card-title" }, [t("overview.distribution")])]),
     el("div", { class: "card-body" }, [bar, legend]),
   ]);
 }
@@ -234,13 +234,13 @@ export function boothTable(
       el("table", { class: "table table-vcenter card-table table-hover" }, [
         el("thead", {}, [
           el("tr", {}, [
-            header("label", "Cabine"),
-            header("health", "Santé"),
-            header("connection", "Connexion"),
-            header("sessions", "Sessions"),
-            header("revenue", "Revenu"),
-            header("version", "Version"),
-            header("heartbeat", "Vu"),
+            header("label", t("table.booth")),
+            header("health", t("table.health")),
+            header("connection", t("table.connection")),
+            header("sessions", t("table.sessions")),
+            header("revenue", t("table.revenue")),
+            header("version", t("table.version")),
+            header("heartbeat", t("table.seen")),
           ]),
         ]),
         el("tbody", {}, rows),
