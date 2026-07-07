@@ -52,6 +52,13 @@ async function main(): Promise<void> {
     console.info("[booth] mode hors ligne (catalogue factice, sessions en mémoire)");
   }
 
+  // Base de l'URL de partage (QR de fin → /s/{token}). Priorité : override explicite,
+  // sinon l'Edge Function du projet Supabase, sinon le futur domaine public.
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const shareBaseUrl =
+    (import.meta.env.VITE_SHARE_BASE_URL as string | undefined) ??
+    (supabaseUrl ? `${supabaseUrl}/functions/v1` : "https://cinematon.app");
+
   const app = new App(
     root,
     new MockUnlockAdapter(), // mock : simule succès ET échecs
@@ -59,7 +66,7 @@ async function main(): Promise<void> {
     new SessionManager(boothId, organizationId, sink),
     {
       boothId,
-      shareBaseUrl: "https://cinematon.app",
+      shareBaseUrl,
       endAutoReturnMs: 45_000,
       afterFilmCountdownSeconds: 60, // 1 min max pour choisir après un film
     },
