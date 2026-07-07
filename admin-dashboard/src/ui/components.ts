@@ -1,6 +1,7 @@
 import type { Booth, HealthStatus } from "../domain/types";
 import { allHealthStatuses, connectionMeta, healthMeta, indicatorLabel } from "../domain/status";
 import { el, formatMoney, icon, relativeTime } from "./dom";
+import { t } from "../i18n";
 
 // Composants d'affichage réutilisables (statut, connexion, KPI, cartes, tableau).
 
@@ -61,12 +62,12 @@ export function computeKpis(booths: readonly Booth[]): Kpi[] {
   const sessions = booths.reduce((n, b) => n + b.sessionsToday, 0);
   const revenue = booths.reduce((n, b) => n + b.revenueTodayCents, 0);
   return [
-    { label: "Cabines", value: String(booths.length), color: "azure", iconPath: "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", filter: [] },
-    { label: "Opérationnelles", value: String(count("operational")), color: "green", iconPath: "M5 12l5 5l10 -10", filter: ["operational"] },
-    { label: "Attention", value: String(count("attention")), color: "yellow", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["attention"] },
-    { label: "En panne / hors-ligne", value: String(count("error") + count("offline")), color: "red", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["error", "offline"] },
-    { label: "Sessions (aujourd'hui)", value: String(sessions), color: "purple", iconPath: "M8 4v16M16 4v16M4 8h16M4 16h16" },
-    { label: "Revenu (aujourd'hui)", value: formatMoney(revenue), color: "teal", iconPath: "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6" },
+    { label: t("kpi.booths"), value: String(booths.length), color: "azure", iconPath: "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", filter: [] },
+    { label: t("kpi.operational"), value: String(count("operational")), color: "green", iconPath: "M5 12l5 5l10 -10", filter: ["operational"] },
+    { label: t("kpi.attention"), value: String(count("attention")), color: "yellow", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["attention"] },
+    { label: t("kpi.errorOffline"), value: String(count("error") + count("offline")), color: "red", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["error", "offline"] },
+    { label: t("kpi.sessionsToday"), value: String(sessions), color: "purple", iconPath: "M8 4v16M16 4v16M4 8h16M4 16h16" },
+    { label: t("kpi.revenueToday"), value: formatMoney(revenue), color: "teal", iconPath: "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6" },
   ];
 }
 
@@ -228,7 +229,7 @@ export function boothTable(
   });
 
   return el("div", { class: "card" }, [
-    el("div", { class: "card-header" }, [el("h3", { class: "card-title" }, ["Toutes les cabines"])]),
+    el("div", { class: "card-header" }, [el("h3", { class: "card-title" }, [t("overview.allBooths")])]),
     el("div", { class: "table-responsive" }, [
       el("table", { class: "table table-vcenter card-table table-hover" }, [
         el("thead", {}, [

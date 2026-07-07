@@ -14,6 +14,7 @@ import { rightsPage } from "./rights";
 import { sessionsPage } from "./sessions";
 import { settingsPage } from "./settings";
 import { mapPage, mountFleetMap } from "./mapView";
+import { t, getLang, setLang, LANGS, onLangChange } from "../i18n";
 
 const THEME_KEY = "cinematon.admin.theme.v1";
 
@@ -41,6 +42,8 @@ export class App {
     private readonly store: FleetStore,
   ) {
     this.store.subscribe(() => this.render());
+    onLangChange(() => this.render());
+    document.documentElement.lang = getLang();
     this.applyTheme();
     // En mode « système », suivre les changements de préférence de l'OS en direct.
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
@@ -141,16 +144,16 @@ export class App {
         el("h1", { class: "navbar-brand fs-2 fw-bold m-0" }, ["CINEMATON"]),
         el("div", { class: "collapse navbar-collapse", id: "sidebar-menu" }, [
           el("ul", { class: "navbar-nav pt-lg-2 w-100" }, [
-            navItem("Vue d'ensemble", "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
-            navItem("Carte", "M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z", this.view === "map", () => this.setView("map")),
-            navItem("Médias", "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", this.view === "media", () => this.setView("media")),
-            navItem("Revenus", "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6", this.view === "revenue", () => this.setView("revenue")),
+            navItem(t("nav.overview"), "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
+            navItem(t("nav.map"), "M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z", this.view === "map", () => this.setView("map")),
+            navItem(t("nav.media"), "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", this.view === "media", () => this.setView("media")),
+            navItem(t("nav.revenue"), "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6", this.view === "revenue", () => this.setView("revenue")),
             this.store.activeHasModule("rights")
-              ? navItem("Droits & redevances", "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", this.view === "rights", () => this.setView("rights"))
-              : navItem("Droits & redevances", "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", false, undefined, true),
-            navItem("Sessions", "M8 4v16M16 4v16M4 8h16M4 16h16", this.view === "sessions", () => this.setView("sessions")),
-            navItem("Maintenance", "M12 3l1.5 3.5l3.5 1.5l-3.5 1.5l-1.5 3.5l-1.5 -3.5l-3.5 -1.5l3.5 -1.5zM6 14l.7 1.8l1.8 .7l-1.8 .7l-.7 1.8l-.7 -1.8l-1.8 -.7l1.8 -.7z", this.view === "maintenance", () => this.setView("maintenance")),
-            navItem("Organisation", "M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16", this.view === "settings", () => this.setView("settings")),
+              ? navItem(t("nav.rights"), "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", this.view === "rights", () => this.setView("rights"))
+              : navItem(t("nav.rights"), "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", false, undefined, true),
+            navItem(t("nav.sessions"), "M8 4v16M16 4v16M4 8h16M4 16h16", this.view === "sessions", () => this.setView("sessions")),
+            navItem(t("nav.maintenance"), "M12 3l1.5 3.5l3.5 1.5l-3.5 1.5l-1.5 3.5l-1.5 -3.5l-3.5 -1.5l3.5 -1.5zM6 14l.7 1.8l1.8 .7l-1.8 .7l-.7 1.8l-.7 -1.8l-1.8 -.7l1.8 -.7z", this.view === "maintenance", () => this.setView("maintenance")),
+            navItem(t("nav.organization"), "M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16", this.view === "settings", () => this.setView("settings")),
           ]),
         ]),
       ]),
@@ -191,15 +194,20 @@ export class App {
     const themeBtn = el("button", { class: "btn btn-icon", type: "button", title: `Thème : ${themeLabel} (cliquer pour changer)` }, [icon(themeIcon, 18)]);
     themeBtn.addEventListener("click", () => this.cycleTheme());
 
+    const langBtn = el("button", { class: "btn btn-icon", type: "button", title: "Langue / Language" }, [
+      el("span", { class: "fw-bold small" }, [getLang().toUpperCase()]),
+    ]);
+    langBtn.addEventListener("click", () => setLang(getLang() === LANGS[0] ? LANGS[1] : LANGS[0]));
+
     const editBtn = el("button", { class: `btn ${this.editing ? "btn-primary" : ""}`, type: "button" }, [
       icon("M4 20h4l10 -10l-4 -4l-10 10v4", 18),
-      el("span", { class: "d-none d-md-inline" }, [this.editing ? "Terminer" : "Éditer"]),
+      el("span", { class: "d-none d-md-inline" }, [this.editing ? t("action.editDone") : t("action.edit")]),
     ]);
     editBtn.addEventListener("click", () => this.toggleEditing());
 
     const addBtn = el("button", { class: "btn btn-primary", type: "button" }, [
       icon("M12 5v14M5 12h14", 18),
-      el("span", { class: "d-none d-sm-inline" }, ["Ajouter"]),
+      el("span", { class: "d-none d-sm-inline" }, [t("action.add")]),
     ]);
     addBtn.addEventListener("click", () => openBoothForm(this.store, null));
 
@@ -207,6 +215,7 @@ export class App {
       el("div", { class: "container-xl" }, [
         el("div", { class: "navbar-nav flex-row order-md-last ms-auto align-items-center gap-2" }, [
           editBtn,
+          langBtn,
           themeBtn,
           el("div", { class: "nav-item dropdown" }, [roleBtn, roleMenu]),
           addBtn,
@@ -236,9 +245,9 @@ export class App {
 
     return el("div", {}, [
       el("div", { class: "mb-3" }, [
-        el("h2", { class: "page-title m-0" }, ["Vue d'ensemble de la flotte"]),
+        el("h2", { class: "page-title m-0" }, [t("overview.title")]),
         el("div", { class: "text-secondary" }, [
-          this.store.isGlobalAdmin ? "Toutes les cabines (global admin)." : "Les cabines de votre organisation.",
+          this.store.isGlobalAdmin ? t("overview.subtitleAdmin") : t("overview.subtitle"),
           this.editing ? " · Glissez les tuiles pour réorganiser." : "",
         ]),
       ]),
@@ -367,7 +376,7 @@ function navItem(label: string, path: string, active: boolean, onClick?: () => v
   // Module non accordé (CIN-080) : item visible mais GRISÉ + cadenas (upsell), non cliquable.
   if (locked) {
     const lockPath = "M6 11V7a4 4 0 0 1 8 0v4M5 11h10a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1H5a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1z";
-    const link = el("a", { class: "nav-link disabled text-secondary opacity-75", href: "#", "aria-disabled": "true", title: "Module non inclus dans votre offre — contactez Cinematon pour l'activer" }, [
+    const link = el("a", { class: "nav-link disabled text-secondary opacity-75", href: "#", "aria-disabled": "true", title: t("nav.locked") }, [
       el("span", { class: "nav-link-icon" }, [icon(path, 20)]),
       el("span", { class: "nav-link-title" }, [label]),
       el("span", { class: "nav-link-icon ms-auto" }, [icon(lockPath, 16)]),
