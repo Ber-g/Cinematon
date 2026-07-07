@@ -1,6 +1,7 @@
 import { Modal } from "bootstrap";
 import type { FleetStore, RightsReport, RightsRow, RoyaltyModel } from "../data/store";
 import { el, formatMoney, icon } from "./dom";
+import { t } from "../i18n";
 
 // Menu Droits & redevances (F9) : journal de vision (`plays`) confronté aux licences.
 // Par film : distributeur, séances utilisées / plafond (org-wide ou par cabine), redevance
@@ -70,7 +71,7 @@ function render(store: FleetStore, rep: RightsReport, reload: () => void): HTMLE
 
   return el("div", {}, [
     el("div", { class: "mb-3" }, [
-      el("h2", { class: "page-title m-0" }, ["Droits & redevances"]),
+      el("h2", { class: "page-title m-0" }, [t("page.rights")]),
       el("div", { class: "text-secondary" }, ["Journal de vision (séances) confronté aux licences. L'application du plafond côté borne viendra quand les cabines seront connectées."]),
     ]),
     el("div", { class: "row row-cards g-2 mb-3" }, [

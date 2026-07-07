@@ -2,6 +2,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { FleetStore } from "../data/store";
 import { el } from "./dom";
+import { t } from "../i18n";
 import { healthMeta } from "../domain/status";
 
 // Carte de la flotte (F11) : pastilles colorées par santé, popup label/lieu/adresse.
@@ -23,7 +24,7 @@ export function mapPage(store: FleetStore): HTMLElement {
   const noGeo = booths.filter((b) => b.gpsLat == null || b.gpsLng == null);
   const mapDiv = el("div", { id: "fleet-map", style: "height: 68vh; border-radius: 8px; z-index: 0;" });
   return el("div", {}, [
-    el("h2", { class: "page-title mb-1" }, ["Carte de la flotte"]),
+    el("h2", { class: "page-title mb-1" }, [t("page.map")]),
     el("p", { class: "text-secondary mb-3" }, [
       `${geo.length} cabine(s) localisée(s)` + (noGeo.length ? ` · ${noGeo.length} sans coordonnées (posez la pin dans la fiche cabine).` : "."),
     ]),

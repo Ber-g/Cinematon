@@ -65,6 +65,12 @@ const DICT: Record<Lang, Record<string, string>> = {
     "hb.online.hint": "Heartbeat récent (< 5 min)",
     "hb.stale.hint": "Pas de heartbeat depuis > 5 min",
     "hb.offline.hint": "Pas de heartbeat depuis > 30 min",
+    "page.revenue": "Revenus",
+    "page.media": "Médias",
+    "page.maintenance": "Maintenance & mises à jour",
+    "page.sessions": "Sessions",
+    "page.map": "Carte de la flotte",
+    "page.rights": "Droits & redevances",
   },
   en: {
     "nav.overview": "Overview",
@@ -122,6 +128,12 @@ const DICT: Record<Lang, Record<string, string>> = {
     "hb.online.hint": "Recent heartbeat (< 5 min)",
     "hb.stale.hint": "No heartbeat for > 5 min",
     "hb.offline.hint": "No heartbeat for > 30 min",
+    "page.revenue": "Revenue",
+    "page.media": "Media",
+    "page.maintenance": "Maintenance & updates",
+    "page.sessions": "Sessions",
+    "page.map": "Fleet map",
+    "page.rights": "Rights & royalties",
   },
 };
 

@@ -1,6 +1,7 @@
 import { Modal } from "bootstrap";
 import type { FleetStore, Release, UpdatesReport } from "../data/store";
 import { el, relativeTime } from "./dom";
+import { t } from "../i18n";
 
 // Menu Maintenance (Phase 4 / F10) : versions logicielles (releases), déploiement vers
 // des cabines, état par cabine (version courante, dernier contact, fenêtre de MAJ,
@@ -80,7 +81,7 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
 
   return el("div", {}, [
     el("div", { class: "mb-3" }, [
-      el("h2", { class: "page-title m-0" }, ["Maintenance & mises à jour"]),
+      el("h2", { class: "page-title m-0" }, [t("page.maintenance")]),
       el("div", { class: "text-secondary" }, ["Déploiement des versions, fenêtres de MAJ et rollback. L'application réelle côté borne (updater + watchdog) suivra ; ici on planifie et on suit l'état."]),
     ]),
     el("div", { class: "card mb-3" }, [

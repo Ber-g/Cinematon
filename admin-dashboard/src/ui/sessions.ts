@@ -1,5 +1,6 @@
 import type { FleetStore, SessionRow } from "../data/store";
 import { el, formatMoney, icon } from "./dom";
+import { t } from "../i18n";
 
 // Menu Sessions (F9, 2e tranche) : liste des séances (cabine, date, méthode de
 // déverrouillage, films joués, montant) + quelques KPI. Données réelles : `sessions`
@@ -67,7 +68,7 @@ function render(store: FleetStore, rows: readonly SessionRow[]): HTMLElement {
 
   return el("div", {}, [
     el("div", { class: "mb-3" }, [
-      el("h2", { class: "page-title m-0" }, ["Sessions"]),
+      el("h2", { class: "page-title m-0" }, [t("page.sessions")]),
       el("div", { class: "text-secondary" }, ["Séances et films joués. Les données réelles arriveront quand les cabines seront branchées (ici : séances seedées)."]),
     ]),
     el("div", { class: "row row-cards g-2 mb-3" }, [

@@ -1,9 +1,11 @@
 import { Modal } from "bootstrap";
+import { CANONICAL_MOODS } from "@cinematon/domain";
 import type { Media } from "../domain/types";
 import type { FleetStore } from "../data/store";
 import { sha256Hex } from "../data/hash";
 import { openPreview } from "./preview";
 import { el } from "./dom";
+import { t } from "../i18n";
 
 // Page de gestion des médias (F8) + modale d'ajout/édition. CRUD sur Supabase,
 // hachage SHA-256 côté client, anti-doublons imposé par la base, filtrage par
@@ -135,7 +137,7 @@ export function mediaPage(store: FleetStore, onChanged: () => void): HTMLElement
 
     return el("div", {}, [
       el("div", { class: "d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap" }, [
-        el("div", {}, [el("h2", { class: "page-title m-0" }, ["Médias"]), el("div", { class: "text-secondary" }, [`${all.length} média(s)`])]),
+        el("div", {}, [el("h2", { class: "page-title m-0" }, [t("page.media")]), el("div", { class: "text-secondary" }, [`${all.length} média(s)`])]),
         el("div", { class: "btn-list" }, [send, add]),
       ]),
       statsPanel(store),
@@ -359,6 +361,18 @@ export function openMediaForm(store: FleetStore, existing: Media | null, onChang
   const duration = el("input", { class: "form-control", type: "number", value: String(base.durationSeconds), placeholder: "secondes" }) as HTMLInputElement;
   const language = el("input", { class: "form-control", type: "text", value: base.language, maxlength: "5" }) as HTMLInputElement;
   const audienceTags = el("input", { class: "form-control", type: "text", value: base.audienceTags.join(", "), placeholder: "18+, bar, enfant…" }) as HTMLInputElement;
+  const genres = el("input", { class: "form-control", type: "text", value: base.genres.join(", "), placeholder: "drame, expérimental, animation…" }) as HTMLInputElement;
+  const tags = el("input", { class: "form-control", type: "text", value: base.tags.join(", "), placeholder: "nuit, lent, contemplatif…" }) as HTMLInputElement;
+  const tmdbId = el("input", { class: "form-control", type: "number", value: base.tmdbId === null ? "" : String(base.tmdbId), placeholder: "id TMDB (optionnel)" }) as HTMLInputElement;
+
+  // Humeurs = vocabulaire CONTRÔLÉ (source unique CANONICAL_MOODS) : une case par
+  // humeur canonique → garantit le match reco + palette cabine (pas de texte libre).
+  const moodChecks = CANONICAL_MOODS.map((m) => {
+    const input = el("input", { class: "form-check-input", type: "checkbox", value: m.key, ...(base.moods.includes(m.key) ? { checked: "checked" } : {}) }) as HTMLInputElement;
+    const label = el("label", { class: "form-check form-check-inline" }, [input, el("span", { class: "form-check-label" }, [m.label])]);
+    return { key: m.key, input, label };
+  });
+  const moods = el("div", { class: "d-flex flex-wrap gap-1" }, moodChecks.map((c) => c.label));
   const protection = el("select", { class: "form-select" }, (["none", "encrypted", "drm"] as const).map((p) => el("option", { value: p, ...((base.protection ?? "none") === p ? { selected: "selected" } : {}) }, [p === "none" ? "Aucune" : p === "encrypted" ? "Chiffré" : "DRM"]))) as HTMLSelectElement;
   const drmScheme = el("input", { class: "form-control", type: "text", value: base.drmScheme ?? "", placeholder: "widevine, playready… (si DRM)" }) as HTMLInputElement;
   const synopsis = el("textarea", { class: "form-control", rows: "2" }, [base.synopsis]) as HTMLTextAreaElement;
@@ -400,6 +414,13 @@ export function openMediaForm(store: FleetStore, existing: Media | null, onChang
       field("Schéma DRM", drmScheme),
     ]),
     el("div", { class: "mb-2" }, [el("label", { class: "form-label" }, ["Synopsis"]), synopsis]),
+    el("div", { class: "hr-text" }, ["Métadonnées éditoriales (reco)"]),
+    el("div", { class: "row" }, [
+      el("div", { class: "col-12 mb-3" }, [el("label", { class: "form-label" }, ["Humeurs"]), moods, el("div", { class: "form-hint" }, ["Détermine la reco par humeur et le thème couleur en cabine."])]),
+      field("Genres", genres),
+      field("Tags éditoriaux", tags),
+      field("TMDB id", tmdbId),
+    ]),
   ]);
 
   const modalEl = el("div", { class: "modal modal-blur fade", tabindex: "-1" }, [
@@ -439,6 +460,10 @@ export function openMediaForm(store: FleetStore, existing: Media | null, onChang
       durationSeconds: Number(duration.value) || 0,
       language: language.value.trim() || "fr",
       audienceTags: parseTags(audienceTags.value),
+      genres: parseTags(genres.value),
+      tags: parseTags(tags.value),
+      moods: moodChecks.filter((c) => c.input.checked).map((c) => c.key),
+      tmdbId: Number(tmdbId.value) || null,
       synopsis: synopsis.value.trim(),
       protection: protection.value as "none" | "encrypted" | "drm",
       drmScheme: drmScheme.value.trim() || null,

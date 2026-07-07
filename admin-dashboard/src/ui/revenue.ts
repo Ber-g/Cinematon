@@ -1,5 +1,6 @@
 import type { FleetStore } from "../data/store";
 import { el, formatMoney, icon } from "./dom";
+import { t } from "../i18n";
 import { timeSeriesChart } from "./chart";
 
 // Vue Revenus (F9). Agrège les transactions (scopées RLS) : KPI, évolution 30 j,
@@ -112,7 +113,7 @@ export function revenuePage(store: FleetStore): HTMLElement {
 
   return el("div", {}, [
     el("div", { class: "mb-3" }, [
-      el("h2", { class: "page-title m-0" }, ["Revenus"]),
+      el("h2", { class: "page-title m-0" }, [t("page.revenue")]),
       el("div", { class: "text-secondary" }, [store.isGlobalAdmin ? "Toutes les organisations (global admin)." : "Revenus de votre organisation.", " · Conso data LTE : reportée (phase rue)."]),
     ]),
     el("div", { class: "row row-cards g-2 mb-3" }, [
