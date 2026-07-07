@@ -7,7 +7,7 @@ import type { Film } from "./types";
 
 // Champs « Media V2 » (organizationId, contentHash…) ajoutés par map ci-dessous —
 // évite de répéter des valeurs identiques sur chaque littéral factice.
-type SeedFilm = Omit<Film, "organizationId" | "contentHash" | "language" | "audienceTags" | "subtitles">;
+type SeedFilm = Omit<Film, "organizationId" | "contentHash" | "language" | "audienceTags" | "subtitles" | "reviewedAt" | "reviewedBy">;
 
 /** Empreinte factice déterministe (remplacée par un vrai SHA-256 à l'upload). */
 function mockHash(seed: string): string {
@@ -153,6 +153,8 @@ export const FACTICE_CATALOG: readonly Film[] = SEED_FILMS.map((f) => ({
   language: "fr",
   audienceTags: ["bar"],
   subtitles: [],
+  reviewedAt: null,
+  reviewedBy: null,
 }));
 
 // Catalogue d'EXÉCUTION : part du catalogue factice, mais peut recevoir des films
@@ -162,6 +164,12 @@ const runtimeCatalog: Film[] = FACTICE_CATALOG.map((f) => ({ ...f }));
 /** Ajoute un film au catalogue d'exécution (import USB/fichier). */
 export function addFilm(film: Film): void {
   runtimeCatalog.push(film);
+}
+
+/** Remplace le catalogue d'exécution (ex. catalogue réel chargé depuis Supabase). */
+export function setCatalog(films: readonly Film[]): void {
+  runtimeCatalog.length = 0;
+  runtimeCatalog.push(...films);
 }
 
 /** Tous les films du catalogue d'exécution. */

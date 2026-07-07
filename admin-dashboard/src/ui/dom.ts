@@ -1,4 +1,5 @@
 // Helpers DOM — vanilla, typés. Partagés par tous les composants du dashboard.
+import { t } from "../i18n";
 
 type Attrs = Record<string, string | number | boolean | undefined>;
 
@@ -37,18 +38,20 @@ export function icon(path: string, size = 24): SVGElement {
   return svg;
 }
 
-export function formatMoney(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+export function formatMoney(cents: number, currency = "EUR"): string {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency }).format(cents / 100);
 }
 
 export function relativeTime(epochMs: number): string {
+  // 0 / valeur absente = aucun heartbeat reçu (pas « il y a 56 ans »).
+  if (!epochMs || epochMs <= 0) return t("time.never");
   const s = Math.round((Date.now() - epochMs) / 1000);
-  if (s < 60) return `il y a ${s} s`;
+  if (s < 60) return t("time.secondsAgo", { n: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `il y a ${m} min`;
+  if (m < 60) return t("time.minutesAgo", { n: m });
   const h = Math.round(m / 60);
-  if (h < 24) return `il y a ${h} h`;
-  return `il y a ${Math.round(h / 24)} j`;
+  if (h < 24) return t("time.hoursAgo", { n: h });
+  return t("time.daysAgo", { n: Math.round(h / 24) });
 }
 
 export function formatClockTime(epochMs: number): string {

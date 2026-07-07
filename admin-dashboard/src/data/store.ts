@@ -1,8 +1,172 @@
-import type { Booth, CurrentIdentity, Media, OrgRole, User } from "../domain/types";
+import type { Booth, CurrentIdentity, Media, MediaInstance, OrgRole, StorageLocation, User } from "../domain/types";
 import { MOCK_BOOTHS, MOCK_MEMBERSHIPS, MOCK_ORGS, MOCK_USERS } from "./mockFleet";
 import { isSupabaseConfigured, supabase } from "./supabase";
-import { boothToRow, mediaToRow, rowToBooth, rowToMedia } from "./mappers";
+import { boothToRow, mediaToRow, rowToBooth, rowToMedia, rowToMediaInstance, rowToStorageLocation, rowToTransaction, type TransactionRecord } from "./mappers";
 import { sha256Hex } from "./hash";
+
+/** Agrégats de lecture d'un média (dashboard F8). */
+export interface MediaStat {
+  readonly mediaId: string;
+  readonly title: string;
+  readonly plays: number;
+  readonly playSeconds: number;
+}
+export interface MediaStatsResult {
+  readonly totalPlays: number;
+  readonly totalSeconds: number;
+  /** Médias les plus lus, décroissant (top 10). */
+  readonly top: readonly MediaStat[];
+}
+
+/** Résumé d'organisation exposé à l'UI (avec région/devise — 1 org = 1 région). */
+export interface OrgSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly type: string;
+  readonly region: string | null;
+  readonly currency: string;
+  readonly whitelistTags: readonly string[];
+  readonly themeId: string | null;
+}
+
+/** Membre d'une organisation (jointure memberships × users). */
+export interface OrgMember {
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly name: string;
+  readonly email: string;
+  readonly role: OrgRole;
+  readonly isSelf: boolean;
+}
+
+/** Invitation en attente / traitée. */
+export interface Invitation {
+  readonly id: string;
+  readonly email: string;
+  readonly role: OrgRole;
+  readonly status: "pending" | "accepted" | "revoked" | "expired";
+  readonly token: string;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+}
+
+/** Séance (session) avec les films joués — menu Sessions (F9). */
+export interface SessionRow {
+  readonly id: string;
+  readonly boothLabel: string;
+  readonly startedAt: number;
+  readonly unlockMethod: string;
+  readonly amountCents: number | null;
+  readonly films: ReadonlyArray<{ title: string; source: string; completed: boolean }>;
+}
+
+/** Version logicielle déployable (Phase 4 / F10). */
+export interface Release {
+  readonly id: string;
+  readonly version: string;
+  readonly urgency: "normal" | "urgent";
+  readonly notes: string;
+  readonly createdAt: number;
+}
+/** État de déploiement d'une release sur une cabine. */
+export interface BoothUpdate {
+  readonly id: string;
+  readonly boothId: string;
+  readonly releaseId: string;
+  readonly status: "pending" | "scheduled" | "applying" | "applied" | "failed" | "rolled_back";
+  readonly scheduledFor: number | null;
+  readonly appliedAt: number | null;
+  readonly error: string;
+}
+/** Ligne de rapport MAJ par cabine. */
+export interface UpdatesRow {
+  readonly boothId: string;
+  readonly boothLabel: string;
+  readonly currentVersion: string;
+  readonly lastHeartbeat: number;
+  readonly maintenanceHour: number;
+  readonly latest: { version: string; urgency: "normal" | "urgent"; status: BoothUpdate["status"]; updateId: string } | null;
+}
+export interface UpdatesReport {
+  readonly releases: readonly Release[];
+  readonly rows: readonly UpdatesRow[];
+}
+
+/** Distributeur (ayant droit) — org-scoped, donc rattaché au territoire de l'org. */
+export interface Distributor {
+  readonly id: string;
+  readonly name: string;
+  readonly territory: string;
+  readonly contactEmail: string;
+  readonly notes: string;
+}
+
+export type RoyaltyModel = "free" | "per_screening" | "revenue_share" | "flat";
+
+/** Licence de diffusion d'un média (termes de droits). Une par (org, média). */
+export interface MediaLicense {
+  readonly id: string;
+  readonly mediaId: string;
+  readonly distributorId: string | null;
+  readonly royaltyModel: RoyaltyModel;
+  readonly royaltyCents: number;
+  readonly revenueSharePct: number;
+  readonly minimumGuaranteeCents: number | null;
+  readonly maxScreenings: number | null;
+  readonly validFrom: string | null;
+  readonly validTo: string | null;
+  readonly notes: string;
+}
+
+/** Plafond/scope par machine pour une licence (optionnel). */
+export interface LicenseBooth {
+  readonly id: string;
+  readonly licenseId: string;
+  readonly boothId: string;
+  readonly maxScreenings: number | null;
+}
+
+/** Ligne du rapport droits & redevances (par média). */
+export interface RightsRow {
+  readonly mediaId: string;
+  readonly title: string;
+  readonly distributorName: string | null;
+  readonly royaltyModel: RoyaltyModel | null;
+  readonly screeningsUsed: number;
+  readonly maxScreenings: number | null;
+  readonly capScope: "org" | "per_booth" | "none";
+  readonly perBooth: ReadonlyArray<{ boothId: string; boothLabel: string; used: number; cap: number | null }>;
+  readonly royaltyOwedCents: number;
+  readonly status: "no_license" | "expired" | "over_cap" | "ok";
+}
+export interface RightsReport {
+  readonly rows: readonly RightsRow[];
+  readonly totalOwedCents: number;
+  readonly overCapCount: number;
+  readonly noLicenseCount: number;
+  readonly currency: string;
+}
+
+/** Intégration de paiement (config NON-SECRÈTE ; secrets côté serveur via secretRef). */
+export interface PaymentIntegration {
+  readonly id: string;
+  readonly provider: string;
+  readonly mode: "test" | "live";
+  readonly status: "active" | "inactive" | "error";
+  readonly label: string;
+  readonly config: Record<string, unknown>;
+  readonly secretRef: string | null;
+}
+
+/** Enregistrement sous-titre (table `subtitles`) — le domaine `Subtitle` n'a ni id ni mediaId. */
+export interface SubtitleRecord {
+  readonly id: string;
+  readonly mediaId: string;
+  readonly lang: string;
+  readonly format: "vtt" | "srt";
+  readonly url: string;
+  readonly workflowStatus: "todo" | "rework" | "verified";
+}
 
 // Store = cache en mémoire + couche d'accès aux données. Deux modes :
 // - `mock`     : données factices + localStorage (sans backend).
@@ -28,7 +192,18 @@ export class FleetStore {
   readonly mode: "mock" | "supabase" = isSupabaseConfigured ? "supabase" : "mock";
   private booths: Booth[] = [];
   private media: Media[] = [];
-  private orgs: Array<{ id: string; name: string }> = [];
+  private storageLocations: StorageLocation[] = [];
+  private mediaInstances: MediaInstance[] = [];
+  private subtitles: SubtitleRecord[] = [];
+  private transactions: TransactionRecord[] = [];
+  private distributors: Distributor[] = [];
+  private mediaLicensesCache: MediaLicense[] = [];
+  private licenseBoothsCache: LicenseBooth[] = [];
+  private releases: Release[] = [];
+  private boothUpdates: BoothUpdate[] = [];
+  private orgs: OrgSummary[] = [];
+  // Feature gating (CIN-080) : entitlements par org (souscription + modules). Absent = tout ON.
+  private entitlements = new Map<string, { subscriptionType: string; enabledModules: string[] }>();
   private identity: CurrentIdentity | null = null;
   private authed = false;
   private listeners = new Set<Listener>();
@@ -44,7 +219,10 @@ export class FleetStore {
   async init(): Promise<void> {
     if (this.mode === "mock") {
       this.booths = this.loadMockBooths();
-      this.orgs = MOCK_ORGS.map((o) => ({ id: o.id, name: o.name }));
+      this.orgs = MOCK_ORGS.map((o) => ({
+        id: o.id, name: o.name, type: o.type, region: o.region ?? null, currency: o.currency ?? "EUR",
+        whitelistTags: o.settings.whitelistTags ?? [], themeId: o.settings.themeId ?? null,
+      }));
       this.identity = mockIdentityFor(localStorage.getItem(LS_IDENTITY) ?? "user-admin");
       this.authed = true;
       this.emit();
@@ -96,8 +274,76 @@ export class FleetStore {
     this.booths = (booths ?? []).map(rowToBooth);
     const { data: media } = await supabase!.from("media").select("*");
     this.media = (media ?? []).map(rowToMedia);
-    const { data: orgs } = await supabase!.from("organizations").select("id,name");
-    this.orgs = (orgs ?? []) as Array<{ id: string; name: string }>;
+    // select("*") : robuste avant/après la migration 0005 (region/currency absentes → défaut).
+    const { data: orgs } = await supabase!.from("organizations").select("*");
+    this.orgs = (orgs ?? []).map((o: Record<string, unknown>) => {
+      const settings = (o.settings as { themeId?: string; whitelistTags?: string[] } | null) ?? {};
+      return {
+        id: String(o.id),
+        name: String(o.name),
+        type: String(o.type ?? "bar"),
+        region: (o.region as string | null) ?? null,
+        currency: (o.currency as string | undefined) ?? "EUR",
+        whitelistTags: settings.whitelistTags ?? [],
+        themeId: settings.themeId ?? null,
+      };
+    });
+    // Entitlements (CIN-080) : gracieux si 0011 pas encore appliquée (table absente → tout ON).
+    this.entitlements = new Map();
+    const { data: ents } = await supabase!.from("org_entitlements").select("*");
+    for (const e of (ents ?? []) as Array<Record<string, unknown>>) {
+      this.entitlements.set(String(e.organization_id), {
+        subscriptionType: String(e.subscription_type ?? "demo"),
+        enabledModules: Array.isArray(e.enabled_modules) ? (e.enabled_modules as string[]) : [],
+      });
+    }
+    // Supports physiques + présence des médias (F8 : envoi batch, couverture cabine).
+    const { data: locations } = await supabase!.from("storage_locations").select("*");
+    this.storageLocations = (locations ?? []).map(rowToStorageLocation);
+    const { data: instances } = await supabase!.from("media_instances").select("id,media_id,storage_location_id");
+    this.mediaInstances = (instances ?? []).map(rowToMediaInstance);
+    const { data: subs } = await supabase!.from("subtitles").select("id,media_id,lang,format,url,workflow_status");
+    this.subtitles = (subs ?? []).map((r: Record<string, unknown>) => ({
+      id: String(r.id),
+      mediaId: String(r.media_id),
+      lang: String(r.lang),
+      format: r.format as SubtitleRecord["format"],
+      url: String(r.url),
+      workflowStatus: r.workflow_status as SubtitleRecord["workflowStatus"],
+    }));
+    const { data: tx } = await supabase!.from("transactions").select("id,booth_id,organization_id,amount_cents,currency,provider,created_at");
+    this.transactions = (tx ?? []).map(rowToTransaction);
+    // Droits & redevances (tables 0007 ; gracieux si pas encore appliquée → cache vide).
+    const { data: dist } = await supabase!.from("distributors").select("*");
+    this.distributors = ((dist ?? []) as Array<Record<string, unknown>>).map((d) => ({
+      id: String(d.id), name: String(d.name), territory: String(d.territory ?? ""),
+      contactEmail: String(d.contact_email ?? ""), notes: String(d.notes ?? ""),
+    }));
+    const { data: lic } = await supabase!.from("media_licenses").select("*");
+    this.mediaLicensesCache = ((lic ?? []) as Array<Record<string, unknown>>).map((l) => ({
+      id: String(l.id), mediaId: String(l.media_id), distributorId: (l.distributor_id as string | null) ?? null,
+      royaltyModel: l.royalty_model as RoyaltyModel, royaltyCents: Number(l.royalty_cents ?? 0),
+      revenueSharePct: Number(l.revenue_share_pct ?? 0), minimumGuaranteeCents: (l.minimum_guarantee_cents as number | null) ?? null,
+      maxScreenings: (l.max_screenings as number | null) ?? null, validFrom: (l.valid_from as string | null) ?? null,
+      validTo: (l.valid_to as string | null) ?? null, notes: String(l.notes ?? ""),
+    }));
+    const { data: lb } = await supabase!.from("license_booths").select("*");
+    this.licenseBoothsCache = ((lb ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id), licenseId: String(r.license_id), boothId: String(r.booth_id),
+      maxScreenings: (r.max_screenings as number | null) ?? null,
+    }));
+    // Mises à jour (tables 0008 ; gracieux si pas encore appliquée).
+    const { data: rel } = await supabase!.from("releases").select("*");
+    this.releases = ((rel ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id), version: String(r.version), urgency: r.urgency as Release["urgency"],
+      notes: String(r.notes ?? ""), createdAt: new Date(String(r.created_at)).getTime(),
+    }));
+    const { data: bu } = await supabase!.from("booth_updates").select("*");
+    this.boothUpdates = ((bu ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id), boothId: String(r.booth_id), releaseId: String(r.release_id),
+      status: r.status as BoothUpdate["status"], scheduledFor: r.scheduled_for ? new Date(String(r.scheduled_for)).getTime() : null,
+      appliedAt: r.applied_at ? new Date(String(r.applied_at)).getTime() : null, error: String(r.error ?? ""),
+    }));
     await this.enrichBooths();
     this.authed = true;
     this.emit();
@@ -115,17 +361,21 @@ export class FleetStore {
     const sinceStr = new Date(Date.now() - 13 * 86_400_000).toISOString().slice(0, 10);
 
     interface StatRow { booth_id: string; date: string; sessions: number; bandwidth_mb: number }
-    interface TxRow { booth_id: string; amount_cents: number; created_at: string }
     interface AlertRow { booth_id: string | null; severity: string; message: string; created_at: string }
 
-    const [stats, tx, alerts] = await Promise.all([
+    const [stats, alerts] = await Promise.all([
       supabase!.from("daily_stats").select("booth_id,date,sessions,bandwidth_mb").gte("date", sinceStr),
-      supabase!.from("transactions").select("booth_id,amount_cents,created_at"),
       supabase!.from("alerts").select("booth_id,severity,message,created_at").order("created_at", { ascending: false }),
     ]);
     const statRows = (stats.data ?? []) as StatRow[];
-    const txRows = (tx.data ?? []) as TxRow[];
     const alertRows = (alerts.data ?? []) as AlertRow[];
+    // Revenus : réutilise le cache transactions (déjà chargé) plutôt qu'un 2e fetch.
+    const txByBooth = new Map<string, number>();
+    for (const t of this.transactions) {
+      if (new Date(t.createdAt).toISOString().slice(0, 10) === todayStr) {
+        txByBooth.set(t.boothId, (txByBooth.get(t.boothId) ?? 0) + t.amountCents);
+      }
+    }
 
     this.booths = this.booths.map((b) => {
       const history = statRows
@@ -133,9 +383,7 @@ export class FleetStore {
         .sort((a, c) => (a.date < c.date ? -1 : 1))
         .map((s) => ({ date: s.date, sessions: s.sessions, bandwidthMb: s.bandwidth_mb }));
       const todayStat = statRows.find((s) => s.booth_id === b.id && s.date === todayStr);
-      const revenueTodayCents = txRows
-        .filter((t) => t.booth_id === b.id && t.created_at.slice(0, 10) === todayStr)
-        .reduce((n, t) => n + t.amount_cents, 0);
+      const revenueTodayCents = txByBooth.get(b.id) ?? 0;
       const logs = alertRows
         .filter((a) => a.booth_id === b.id)
         .map((a) => ({
@@ -205,8 +453,195 @@ export class FleetStore {
   mediaList(): Media[] {
     return [...this.media];
   }
-  organizations(): Array<{ id: string; name: string }> {
+  organizations(): OrgSummary[] {
     return [...this.orgs];
+  }
+  /** Devise d'une organisation (défaut EUR). */
+  orgCurrency(orgId: string | null | undefined): string {
+    return this.orgs.find((o) => o.id === orgId)?.currency ?? "EUR";
+  }
+  /** Devise de la vue courante : celle de l'org active ; EUR par défaut (global_admin). */
+  activeCurrency(): string {
+    return this.orgCurrency(this.identity?.activeOrganizationId);
+  }
+
+  // ── Feature gating / modules (CIN-080, F18) ─────────────────────────────────
+  /** Souscription + modules d'une org. Absent (pas de ligne / 0011 non appliquée) = tout ON. */
+  entitlementFor(orgId: string | null | undefined): { subscriptionType: string; enabledModules: string[] } | null {
+    return orgId ? (this.entitlements.get(orgId) ?? null) : null;
+  }
+
+  /** L'org a-t-elle ce module ? Défaut ouvert (pas d'entitlement = tous les modules). */
+  hasModule(orgId: string | null | undefined, key: string): boolean {
+    const e = orgId ? this.entitlements.get(orgId) : null;
+    return e ? e.enabledModules.includes(key) : true;
+  }
+
+  /** Module accordé pour l'org active ? Le global_admin voit tout. */
+  activeHasModule(key: string): boolean {
+    if (this.isGlobalAdmin) return true;
+    return this.hasModule(this.identity?.activeOrganizationId, key);
+  }
+
+  /** Écrit la souscription + les modules d'une org. RLS : global_admin uniquement. */
+  async saveEntitlements(orgId: string, patch: { subscriptionType?: string; enabledModules?: string[] }): Promise<{ ok: boolean; error?: string }> {
+    if (!supabase) return { ok: false, error: "hors ligne" };
+    const current = this.entitlements.get(orgId);
+    const row = {
+      organization_id: orgId,
+      subscription_type: patch.subscriptionType ?? current?.subscriptionType ?? "demo",
+      enabled_modules: patch.enabledModules ?? current?.enabledModules ?? [],
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from("org_entitlements").upsert(row, { onConflict: "organization_id" });
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  // ── Gestion d'organisation (menu Organisation — RBAC, invitations, paiement) ─
+  /** L'utilisateur courant est-il super_user de l'org (ou global_admin) ? */
+  canManageOrg(orgId: string | null | undefined): boolean {
+    if (this.isGlobalAdmin) return true;
+    return this.identity?.activeOrganizationId === orgId && this.identity?.role === "super_user";
+  }
+
+  /** Met à jour les réglages généraux d'une organisation (super_user only côté RLS). */
+  async updateOrganization(
+    orgId: string,
+    patch: { name?: string; type?: string; region?: string | null; currency?: string; whitelistTags?: string[]; themeId?: string | null },
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode === "mock") {
+      this.orgs = this.orgs.map((o) => (o.id === orgId ? { ...o, ...patch, whitelistTags: patch.whitelistTags ?? o.whitelistTags } : o));
+      this.emit();
+      return { ok: true };
+    }
+    const current = this.orgs.find((o) => o.id === orgId);
+    const settings: Record<string, unknown> = { whitelistTags: patch.whitelistTags ?? current?.whitelistTags ?? [] };
+    const themeId = patch.themeId ?? current?.themeId ?? null;
+    if (themeId) settings.themeId = themeId;
+    const row: Record<string, unknown> = { settings };
+    if (patch.name !== undefined) row.name = patch.name;
+    if (patch.type !== undefined) row.type = patch.type;
+    if (patch.region !== undefined) row.region = patch.region;
+    if (patch.currency !== undefined) row.currency = patch.currency;
+    const { error } = await supabase!.from("organizations").update(row).eq("id", orgId);
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /** Membres d'une organisation (jointure memberships × users, scopée RLS). */
+  async orgMembers(orgId: string): Promise<OrgMember[]> {
+    if (this.mode !== "supabase") return [];
+    const { data: ms } = await supabase!.from("memberships").select("id,user_id,role").eq("organization_id", orgId);
+    const rows = (ms ?? []) as Array<{ id: string; user_id: string; role: OrgRole }>;
+    const ids = rows.map((r) => r.user_id);
+    const { data: us } = ids.length ? await supabase!.from("users").select("id,name,email").in("id", ids) : { data: [] };
+    const byId = new Map((us ?? []).map((u: { id: string; name: string; email: string }) => [u.id, u]));
+    const self = this.identity?.user.id;
+    return rows.map((r) => ({
+      membershipId: r.id,
+      userId: r.user_id,
+      name: byId.get(r.user_id)?.name ?? "",
+      email: byId.get(r.user_id)?.email ?? "—",
+      role: r.role,
+      isSelf: r.user_id === self,
+    }));
+  }
+
+  async setMemberRole(membershipId: string, role: OrgRole): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("memberships").update({ role }).eq("id", membershipId);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  async removeMember(membershipId: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("memberships").delete().eq("id", membershipId);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  // ── Invitations ──────────────────────────────────────────────────────────────
+  async orgInvitations(orgId: string): Promise<Invitation[]> {
+    if (this.mode !== "supabase") return [];
+    const { data } = await supabase!
+      .from("invitations")
+      .select("id,email,role,status,token,created_at,expires_at")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false });
+    return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      email: String(r.email),
+      role: r.role as OrgRole,
+      status: r.status as Invitation["status"],
+      token: String(r.token),
+      createdAt: new Date(String(r.created_at)).getTime(),
+      expiresAt: new Date(String(r.expires_at)).getTime(),
+    }));
+  }
+
+  /** Crée une invitation (token à haute entropie généré côté client) + renvoie le lien. */
+  async createInvitation(orgId: string, email: string, role: OrgRole): Promise<{ ok: boolean; link?: string; error?: string }> {
+    const token = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+    const link = `${location.origin}${location.pathname}?invite=${token}`;
+    if (this.mode !== "supabase") return { ok: true, link };
+    const { error } = await supabase!.from("invitations").insert({
+      organization_id: orgId,
+      email: email.trim().toLowerCase(),
+      role,
+      token,
+      invited_by: this.identity?.user.id ?? null,
+    });
+    return error ? { ok: false, error: error.message } : { ok: true, link };
+  }
+
+  async revokeInvitation(id: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("invitations").update({ status: "revoked" }).eq("id", id);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  /** Accepte une invitation via son token (fonction security-definer côté base). */
+  async acceptInvitation(token: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.rpc("accept_invitation", { invite_token: token });
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  // ── Intégrations de paiement (config non-secrète) ────────────────────────────
+  async orgPaymentIntegrations(orgId: string): Promise<PaymentIntegration[]> {
+    if (this.mode !== "supabase") return [];
+    const { data } = await supabase!.from("payment_integrations").select("*").eq("organization_id", orgId);
+    return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      provider: String(r.provider),
+      mode: r.mode as PaymentIntegration["mode"],
+      status: r.status as PaymentIntegration["status"],
+      label: String(r.label ?? ""),
+      config: (r.config as Record<string, unknown>) ?? {},
+      secretRef: (r.secret_ref as string | null) ?? null,
+    }));
+  }
+
+  async savePaymentIntegration(
+    orgId: string,
+    data: { id?: string; provider: string; mode: string; status: string; label: string },
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const row = { organization_id: orgId, provider: data.provider, mode: data.mode, status: data.status, label: data.label };
+    const res = data.id
+      ? await supabase!.from("payment_integrations").update(row).eq("id", data.id)
+      : await supabase!.from("payment_integrations").insert(row);
+    return res.error ? { ok: false, error: res.error.message } : { ok: true };
+  }
+
+  async deletePaymentIntegration(id: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("payment_integrations").delete().eq("id", id);
+    return error ? { ok: false, error: error.message } : { ok: true };
   }
 
   /**
@@ -266,6 +701,468 @@ export class FleetStore {
     const { error } = await supabase!.from("media").delete().eq("id", id);
     if (error) console.error("deleteMedia:", error.message);
     else await this.loadFromSupabase();
+  }
+
+  /**
+   * Marque (ou dé-marque) une vidéo comme « validée par l'opérateur ». Écrit
+   * uniquement `reviewed_at`/`reviewed_by` — jamais via l'upsert média, pour ne pas
+   * risquer d'écraser d'autres champs. Trace qui valide (audit).
+   */
+  async setMediaReviewed(media: Media, reviewed: boolean): Promise<{ ok: boolean; error?: string }> {
+    const now = reviewed ? Date.now() : null;
+    const patchLocal = (m: Media): Media => ({ ...m, reviewedAt: now, reviewedBy: reviewed ? (this.identity?.user.id ?? null) : null });
+
+    if (this.mode === "mock") {
+      const i = this.media.findIndex((x) => x.id === media.id);
+      if (i >= 0) this.media[i] = patchLocal(this.media[i]!);
+      this.emit();
+      return { ok: true };
+    }
+
+    const patch = reviewed
+      ? { reviewed_at: new Date().toISOString(), reviewed_by: this.identity?.user.id ?? null }
+      : { reviewed_at: null, reviewed_by: null };
+    const { error } = await supabase!.from("media").update(patch).eq("id", media.id);
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  // ── Supports & couverture cabine (F8) ────────────────────────────────────────
+  /** Cabines (visibles) sur lesquelles un média est physiquement présent. */
+  boothIdsForMedia(mediaId: string): Set<string> {
+    const locById = new Map(this.storageLocations.map((l) => [l.id, l.boothId]));
+    const boothIds = new Set<string>();
+    for (const mi of this.mediaInstances) {
+      if (mi.mediaId !== mediaId) continue;
+      const boothId = locById.get(mi.storageLocationId);
+      if (boothId) boothIds.add(boothId);
+    }
+    return boothIds;
+  }
+
+  /** Support cible d'une cabine pour un envoi : privilégie le disque local. */
+  private targetStorageLocation(boothId: string): StorageLocation | undefined {
+    const forBooth = this.storageLocations.filter((l) => l.boothId === boothId);
+    return forBooth.find((l) => l.type === "local") ?? forBooth[0];
+  }
+
+  /**
+   * Envoi batch : place un lot de médias sur plusieurs cabines en une action
+   * (crée des `media_instances`). Les présences déjà existantes sont ignorées ;
+   * une cabine sans support de stockage connu est comptée en `skipped`.
+   */
+  async sendMediaToBooths(
+    mediaIds: readonly string[],
+    boothIds: readonly string[],
+  ): Promise<{ ok: boolean; created: number; skipped: number; boothsWithoutStorage: number; error?: string }> {
+    let skipped = 0;
+    let boothsWithoutStorage = 0;
+    const rows: Array<{ organization_id: string; media_id: string; storage_location_id: string }> = [];
+
+    for (const boothId of boothIds) {
+      const target = this.targetStorageLocation(boothId);
+      if (!target) {
+        boothsWithoutStorage += 1;
+        continue;
+      }
+      for (const mediaId of mediaIds) {
+        const media = this.media.find((m) => m.id === mediaId);
+        if (!media) continue;
+        const already = this.mediaInstances.some((mi) => mi.mediaId === mediaId && mi.storageLocationId === target.id);
+        if (already) {
+          skipped += 1;
+          continue;
+        }
+        rows.push({ organization_id: media.organizationId, media_id: mediaId, storage_location_id: target.id });
+      }
+    }
+
+    if (this.mode === "mock") {
+      for (const r of rows) this.mediaInstances.push({ id: crypto.randomUUID(), mediaId: r.media_id, storageLocationId: r.storage_location_id });
+      this.emit();
+      return { ok: true, created: rows.length, skipped, boothsWithoutStorage };
+    }
+
+    if (rows.length > 0) {
+      const { error } = await supabase!.from("media_instances").insert(rows);
+      if (error) return { ok: false, created: 0, skipped, boothsWithoutStorage, error: error.message };
+    }
+    await this.loadFromSupabase();
+    return { ok: true, created: rows.length, skipped, boothsWithoutStorage };
+  }
+
+  /**
+   * Agrégats de lecture (dashboard médias F8) : nb de lectures et durée totale
+   * par média, top 10. Lit `plays` (scoped RLS) ; la durée de lecture est estimée
+   * = nb de lectures × durée du média (les `plays` ne portent pas la durée réelle
+   * regardée). À affiner si `plays` gagne un champ `watched_seconds`.
+   */
+  async mediaStats(): Promise<MediaStatsResult> {
+    const durationById = new Map(this.media.map((m) => [m.id, m.durationSeconds]));
+    const titleById = new Map(this.media.map((m) => [m.id, m.title]));
+    const counts = new Map<string, number>();
+
+    if (this.mode === "supabase") {
+      const { data } = await supabase!.from("plays").select("media_id");
+      for (const p of (data ?? []) as Array<{ media_id: string }>) {
+        counts.set(p.media_id, (counts.get(p.media_id) ?? 0) + 1);
+      }
+    }
+
+    let totalPlays = 0;
+    let totalSeconds = 0;
+    const stats: MediaStat[] = [];
+    for (const [mediaId, plays] of counts) {
+      const playSeconds = plays * (durationById.get(mediaId) ?? 0);
+      totalPlays += plays;
+      totalSeconds += playSeconds;
+      stats.push({ mediaId, title: titleById.get(mediaId) ?? "—", plays, playSeconds });
+    }
+    stats.sort((a, b) => b.plays - a.plays);
+    return { totalPlays, totalSeconds, top: stats.slice(0, 10) };
+  }
+
+  // ── Revenus (F9) ─────────────────────────────────────────────────────────────
+  /** Transactions (scopées RLS), plus récentes d'abord. */
+  transactionsList(): TransactionRecord[] {
+    return [...this.transactions].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  /** Liste des séances (F9) : séance + films joués (via `plays`), plus récentes d'abord. */
+  async sessionsList(): Promise<SessionRow[]> {
+    if (this.mode !== "supabase") return [];
+    const { data: sess } = await supabase!
+      .from("sessions")
+      .select("id,booth_id,started_at,unlock_method,amount_cents")
+      .order("started_at", { ascending: false })
+      .limit(300);
+    const { data: playsData } = await supabase!.from("plays").select("session_id,media_id,position,completed,source");
+    const boothLabel = new Map(this.booths.map((b) => [b.id, b.label]));
+    const mediaTitle = new Map(this.media.map((m) => [m.id, m.title]));
+    const bySession = new Map<string, Array<{ position: number; title: string; source: string; completed: boolean }>>();
+    for (const p of (playsData ?? []) as Array<{ session_id: string; media_id: string; position: number; completed: boolean; source: string }>) {
+      let arr = bySession.get(p.session_id);
+      if (!arr) { arr = []; bySession.set(p.session_id, arr); }
+      arr.push({ position: p.position, title: mediaTitle.get(p.media_id) ?? "—", source: p.source, completed: p.completed });
+    }
+    return ((sess ?? []) as Array<{ id: string; booth_id: string; started_at: string; unlock_method: string; amount_cents: number | null }>).map((s) => ({
+      id: s.id,
+      boothLabel: boothLabel.get(s.booth_id) ?? "—",
+      startedAt: new Date(s.started_at).getTime(),
+      unlockMethod: s.unlock_method,
+      amountCents: s.amount_cents ?? null,
+      films: (bySession.get(s.id) ?? []).sort((a, b) => a.position - b.position).map(({ title, source, completed }) => ({ title, source, completed })),
+    }));
+  }
+
+  // ── Mises à jour & résilience (Phase 4 / F10) ────────────────────────────────
+  releasesList(): Release[] {
+    return [...this.releases].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async saveRelease(orgId: string, data: { version: string; urgency: string; notes: string }): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("releases").insert({ organization_id: orgId, version: data.version, urgency: data.urgency, notes: data.notes });
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /** Déploie une release sur des cabines : crée les `booth_updates` (fenêtre = maintenance_hour ; urgent = tout de suite). */
+  async pushRelease(orgId: string, releaseId: string, boothIds: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const rel = this.releases.find((r) => r.id === releaseId);
+    const nextAt = (hour: number): Date => {
+      const d = new Date();
+      d.setHours(hour, 0, 0, 0);
+      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+      return d;
+    };
+    const rows = boothIds.map((bId) => {
+      const booth = this.booths.find((b) => b.id === bId);
+      const when = rel?.urgency === "urgent" ? new Date() : nextAt(booth?.maintenanceHour ?? 3);
+      return { organization_id: orgId, booth_id: bId, release_id: releaseId, status: "scheduled", scheduled_for: when.toISOString() };
+    });
+    const { error } = await supabase!.from("booth_updates").upsert(rows, { onConflict: "booth_id,release_id", ignoreDuplicates: true });
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /** Change le statut d'un déploiement (ops/simulation en attendant l'updater embarqué) : `applied` monte la
+   *  version de la cabine ; `rolled_back`/`failed` créent une alerte. */
+  async setUpdateStatus(updateId: string, status: BoothUpdate["status"]): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const bu = this.boothUpdates.find((u) => u.id === updateId);
+    const { error } = await supabase!.from("booth_updates").update({ status, applied_at: status === "applied" ? new Date().toISOString() : null }).eq("id", updateId);
+    if (error) return { ok: false, error: error.message };
+    if (bu) {
+      const rel = this.releases.find((r) => r.id === bu.releaseId);
+      const booth = this.booths.find((b) => b.id === bu.boothId);
+      if (status === "applied" && rel) {
+        await supabase!.from("booths").update({ software_version: rel.version, last_heartbeat_at: new Date().toISOString() }).eq("id", bu.boothId);
+      } else if ((status === "rolled_back" || status === "failed") && booth) {
+        await supabase!.from("alerts").insert({
+          organization_id: booth.organizationId,
+          booth_id: booth.id,
+          severity: status === "failed" ? "critical" : "error",
+          message: `${status === "failed" ? "Échec de MAJ" : "Rollback MAJ"} ${rel?.version ?? ""} — ${booth.label}`,
+        });
+      }
+    }
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  async setMaintenanceHour(boothId: string, hour: number): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("booths").update({ maintenance_hour: hour }).eq("id", boothId);
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /** Rapport MAJ par cabine (version courante, dernier contact, fenêtre, dernier déploiement). */
+  updatesReport(): UpdatesReport {
+    const rows: UpdatesRow[] = this.visibleBooths().map((b) => {
+      const ups = this.boothUpdates
+        .filter((u) => u.boothId === b.id)
+        .map((u) => ({ u, rel: this.releases.find((r) => r.id === u.releaseId) }))
+        .filter((x) => x.rel)
+        .sort((a, c) => c.rel!.createdAt - a.rel!.createdAt);
+      const latest = ups[0];
+      return {
+        boothId: b.id,
+        boothLabel: b.label,
+        currentVersion: b.softwareVersion || "—",
+        lastHeartbeat: b.lastHeartbeatAt,
+        maintenanceHour: b.maintenanceHour ?? 3,
+        latest: latest ? { version: latest.rel!.version, urgency: latest.rel!.urgency, status: latest.u.status, updateId: latest.u.id } : null,
+      };
+    });
+    return { releases: this.releasesList(), rows };
+  }
+
+  // ── Droits & redevances / distributeurs ──────────────────────────────────────
+  distributorsList(): Distributor[] {
+    return [...this.distributors];
+  }
+  mediaLicenseFor(mediaId: string): MediaLicense | undefined {
+    return this.mediaLicensesCache.find((l) => l.mediaId === mediaId);
+  }
+  licenseBoothsFor(licenseId: string): LicenseBooth[] {
+    return this.licenseBoothsCache.filter((lb) => lb.licenseId === licenseId);
+  }
+
+  async saveDistributor(orgId: string, d: { id?: string; name: string; territory: string; contactEmail: string }): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const row = { organization_id: orgId, name: d.name, territory: d.territory, contact_email: d.contactEmail };
+    const res = d.id ? await supabase!.from("distributors").update(row).eq("id", d.id) : await supabase!.from("distributors").insert(row);
+    if (res.error) return { ok: false, error: res.error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+  async deleteDistributor(id: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("distributors").delete().eq("id", id);
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /** Enregistre (upsert) la licence d'un média (une par org+média). */
+  async saveMediaLicense(orgId: string, l: Omit<MediaLicense, "id"> & { id?: string }): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const row = {
+      organization_id: orgId, media_id: l.mediaId, distributor_id: l.distributorId,
+      royalty_model: l.royaltyModel, royalty_cents: l.royaltyCents, revenue_share_pct: l.revenueSharePct,
+      minimum_guarantee_cents: l.minimumGuaranteeCents, max_screenings: l.maxScreenings,
+      valid_from: l.validFrom, valid_to: l.validTo, notes: l.notes,
+    };
+    const { error } = await supabase!.from("media_licenses").upsert(row, { onConflict: "organization_id,media_id" });
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+  async deleteMediaLicense(id: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("media_licenses").delete().eq("id", id);
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+  /** Remplace le scope/plafond par machine d'une licence (delete + insert). */
+  async setLicenseBooths(orgId: string, licenseId: string, entries: Array<{ boothId: string; maxScreenings: number | null }>): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    await supabase!.from("license_booths").delete().eq("license_id", licenseId);
+    if (entries.length > 0) {
+      const rows = entries.map((e) => ({ organization_id: orgId, license_id: licenseId, booth_id: e.boothId, max_screenings: e.maxScreenings }));
+      const { error } = await supabase!.from("license_booths").insert(rows);
+      if (error) return { ok: false, error: error.message };
+    }
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /**
+   * Rapport droits & redevances (F9) : par média, séances (plays `completed`) vs plafond
+   * (org-wide ou par cabine), redevance estimée, statut. Le journal de vision est `plays`,
+   * rattaché à la cabine via `session.booth_id`.
+   */
+  async rightsReport(): Promise<RightsReport> {
+    const emptyReport: RightsReport = { rows: [], totalOwedCents: 0, overCapCount: 0, noLicenseCount: 0, currency: this.activeCurrency() };
+    if (this.mode !== "supabase") return emptyReport;
+
+    const { data: playsData } = await supabase!.from("plays").select("media_id,session_id,completed");
+    const { data: sessData } = await supabase!.from("sessions").select("id,booth_id");
+    const sessionBooth = new Map(((sessData ?? []) as Array<{ id: string; booth_id: string }>).map((s) => [s.id, s.booth_id]));
+
+    const completedByMedia = new Map<string, number>();
+    const byMediaBooth = new Map<string, Map<string, number>>();
+    let totalCompleted = 0;
+    for (const p of (playsData ?? []) as Array<{ media_id: string; session_id: string; completed: boolean }>) {
+      if (!p.completed) continue;
+      totalCompleted += 1;
+      completedByMedia.set(p.media_id, (completedByMedia.get(p.media_id) ?? 0) + 1);
+      const booth = sessionBooth.get(p.session_id);
+      if (booth) {
+        let m = byMediaBooth.get(p.media_id);
+        if (!m) { m = new Map(); byMediaBooth.set(p.media_id, m); }
+        m.set(booth, (m.get(booth) ?? 0) + 1);
+      }
+    }
+
+    const totalRevenueCents = this.transactions.reduce((n, t) => n + t.amountCents, 0);
+    const boothLabel = new Map(this.booths.map((b) => [b.id, b.label]));
+    const distName = new Map(this.distributors.map((d) => [d.id, d.name]));
+    const today = new Date().toISOString().slice(0, 10);
+
+    const rows: RightsRow[] = this.media.map((media) => {
+      const lic = this.mediaLicensesCache.find((l) => l.mediaId === media.id);
+      const used = completedByMedia.get(media.id) ?? 0;
+      const lbs = lic ? this.licenseBoothsCache.filter((lb) => lb.licenseId === lic.id) : [];
+      const capScope: RightsRow["capScope"] = lbs.length > 0 ? "per_booth" : lic && lic.maxScreenings != null ? "org" : "none";
+      const mb = byMediaBooth.get(media.id) ?? new Map<string, number>();
+      const perBooth = lbs.length > 0
+        ? lbs.map((lb) => ({ boothId: lb.boothId, boothLabel: boothLabel.get(lb.boothId) ?? "—", used: mb.get(lb.boothId) ?? 0, cap: lb.maxScreenings ?? lic!.maxScreenings ?? null }))
+        : [...mb.entries()].map(([bId, u]) => ({ boothId: bId, boothLabel: boothLabel.get(bId) ?? "—", used: u, cap: null as number | null }));
+
+      let status: RightsRow["status"] = "ok";
+      if (!lic) status = "no_license";
+      else if (lic.validTo && lic.validTo < today) status = "expired";
+      else if (capScope === "per_booth" && perBooth.some((pb) => pb.cap != null && pb.used >= pb.cap)) status = "over_cap";
+      else if (capScope === "org" && lic.maxScreenings != null && used >= lic.maxScreenings) status = "over_cap";
+
+      let owed = 0;
+      if (lic) {
+        if (lic.royaltyModel === "per_screening") owed = used * lic.royaltyCents;
+        else if (lic.royaltyModel === "flat") owed = lic.minimumGuaranteeCents ?? 0;
+        else if (lic.royaltyModel === "revenue_share") owed = totalCompleted > 0 ? Math.round(totalRevenueCents * (used / totalCompleted) * (lic.revenueSharePct / 100)) : 0;
+      }
+
+      return {
+        mediaId: media.id, title: media.title,
+        distributorName: lic?.distributorId ? distName.get(lic.distributorId) ?? null : null,
+        royaltyModel: lic?.royaltyModel ?? null, screeningsUsed: used, maxScreenings: lic?.maxScreenings ?? null,
+        capScope, perBooth, royaltyOwedCents: owed, status,
+      };
+    });
+
+    return {
+      rows,
+      totalOwedCents: rows.reduce((n, r) => n + r.royaltyOwedCents, 0),
+      overCapCount: rows.filter((r) => r.status === "over_cap").length,
+      noLicenseCount: rows.filter((r) => r.status === "no_license").length,
+      currency: this.activeCurrency(),
+    };
+  }
+
+  // ── Aperçu média & sous-titres (F8/F12) ──────────────────────────────────────
+  /** Sous-titres enregistrés pour un média. */
+  subtitlesFor(mediaId: string): SubtitleRecord[] {
+    return this.subtitles.filter((s) => s.mediaId === mediaId);
+  }
+
+  /**
+   * URL signée temporaire pour lire un objet du bucket privé `media` dans le
+   * navigateur (le bucket n'est pas public). `null` si pas de chemin ou en mock.
+   */
+  async signedUrl(path: string | null, ttlSeconds = 3600): Promise<string | null> {
+    if (!path || this.mode !== "supabase") return null;
+    const { data, error } = await supabase!.storage.from("media").createSignedUrl(path, ttlSeconds);
+    if (error) {
+      console.error("signedUrl:", error.message);
+      return null;
+    }
+    return data.signedUrl;
+  }
+
+  /**
+   * Enregistre une piste de sous-titres calée (offset déjà baké dans le VTT) :
+   * upload dans Storage à un chemin déterministe puis upsert de la ligne
+   * `subtitles`. Chemin = `{org}/{hash}/subs/{lang}.vtt` → 1er segment = org, donc
+   * couvert par les mêmes policies storage que la vidéo (isolation préservée).
+   */
+  async saveSubtitle(media: Media, lang: string, vttText: string): Promise<{ ok: boolean; error?: string }> {
+    const safeLang = lang.trim().toLowerCase() || "fr";
+    if (this.mode === "mock") {
+      this.subtitles = this.subtitles.filter((s) => !(s.mediaId === media.id && s.lang === safeLang));
+      this.subtitles.push({ id: crypto.randomUUID(), mediaId: media.id, lang: safeLang, format: "vtt", url: `mock/${safeLang}.vtt`, workflowStatus: "verified" });
+      this.emit();
+      return { ok: true };
+    }
+
+    const path = `${media.organizationId}/${media.contentHash}/subs/${safeLang}.vtt`;
+    const blob = new Blob([vttText], { type: "text/vtt" });
+    // Le bucket `media` (0003) n'a pas de policy UPDATE sur storage.objects → un
+    // `upsert` d'un objet EXISTANT (re-calage d'une même langue) est refusé par la
+    // RLS. On supprime d'abord (policy DELETE OK) puis on insère (policy INSERT OK).
+    await supabase!.storage.from("media").remove([path]);
+    const up = await supabase!.storage.from("media").upload(path, blob, { upsert: false, contentType: "text/vtt" });
+    if (up.error) return { ok: false, error: `Téléversement des sous-titres échoué : ${up.error.message}` };
+
+    // Upsert manuel (pas de contrainte unique (media_id,lang) sur la table).
+    const existing = this.subtitles.find((s) => s.mediaId === media.id && s.lang === safeLang);
+    if (existing) {
+      const { error } = await supabase!.from("subtitles").update({ format: "vtt", url: path, workflow_status: "verified" }).eq("id", existing.id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await supabase!
+        .from("subtitles")
+        .insert({ organization_id: media.organizationId, media_id: media.id, lang: safeLang, format: "vtt", url: path, workflow_status: "verified" });
+      if (error) return { ok: false, error: error.message };
+    }
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /** Supprime une piste de sous-titres : l'objet Storage puis la ligne `subtitles`. */
+  async deleteSubtitle(sub: SubtitleRecord): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode === "mock") {
+      this.subtitles = this.subtitles.filter((s) => s.id !== sub.id);
+      this.emit();
+      return { ok: true };
+    }
+    // L'objet peut déjà être absent (piste orpheline) → on ignore l'erreur storage.
+    await supabase!.storage.from("media").remove([sub.url]);
+    const { error } = await supabase!.from("subtitles").delete().eq("id", sub.id);
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /** Récupère le contenu texte d'un sous-titre stocké (via URL signée). */
+  async fetchSubtitleText(path: string): Promise<string | null> {
+    const url = await this.signedUrl(path, 300);
+    if (!url) return null;
+    try {
+      const res = await fetch(url);
+      return res.ok ? await res.text() : null;
+    } catch (e) {
+      console.error("fetchSubtitleText:", e);
+      return null;
+    }
   }
 
   // ── Disposition des widgets ─────────────────────────────────────────────────

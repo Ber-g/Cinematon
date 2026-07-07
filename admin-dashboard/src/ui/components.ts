@@ -1,6 +1,7 @@
 import type { Booth, HealthStatus } from "../domain/types";
 import { allHealthStatuses, connectionMeta, healthMeta, indicatorLabel } from "../domain/status";
 import { el, formatMoney, icon, relativeTime } from "./dom";
+import { t } from "../i18n";
 
 // Composants d'affichage réutilisables (statut, connexion, KPI, cartes, tableau).
 
@@ -24,6 +25,23 @@ export function connectionBadge(booth: Booth): HTMLElement {
   ]);
 }
 
+/**
+ * Statut de connectivité déduit de la FRAÎCHEUR du heartbeat (F3 : détecter une panne
+ * < 5 min). Indépendant du champ `health` stocké — une cabine « opérationnelle » mais
+ * silencieuse est en fait hors-ligne.
+ */
+export function heartbeatBadge(lastHeartbeatAt: number): HTMLElement {
+  const min = 60_000;
+  const age = lastHeartbeatAt > 0 ? Date.now() - lastHeartbeatAt : Number.POSITIVE_INFINITY;
+  const s =
+    age < 5 * min
+      ? { label: t("hb.online"), color: "green", hint: t("hb.online.hint") }
+      : age < 30 * min
+        ? { label: t("hb.stale"), color: "yellow", hint: t("hb.stale.hint") }
+        : { label: lastHeartbeatAt > 0 ? t("hb.offline") : t("hb.never"), color: "red", hint: t("hb.offline.hint") };
+  return el("span", { class: `badge bg-${s.color}-lt`, title: s.hint }, [s.label]);
+}
+
 export function indicatorChips(booth: Booth): HTMLElement {
   const chips = booth.indicators.map((ind) => el("span", { class: "badge bg-secondary-lt" }, [indicatorLabel(ind)]));
   return el("span", { class: "d-inline-flex flex-wrap gap-1" }, chips.length ? chips : [el("span", { class: "text-secondary" }, ["—"])]);
@@ -44,12 +62,12 @@ export function computeKpis(booths: readonly Booth[]): Kpi[] {
   const sessions = booths.reduce((n, b) => n + b.sessionsToday, 0);
   const revenue = booths.reduce((n, b) => n + b.revenueTodayCents, 0);
   return [
-    { label: "Cabines", value: String(booths.length), color: "azure", iconPath: "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", filter: [] },
-    { label: "Opérationnelles", value: String(count("operational")), color: "green", iconPath: "M5 12l5 5l10 -10", filter: ["operational"] },
-    { label: "Attention", value: String(count("attention")), color: "yellow", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["attention"] },
-    { label: "En panne / hors-ligne", value: String(count("error") + count("offline")), color: "red", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["error", "offline"] },
-    { label: "Sessions (aujourd'hui)", value: String(sessions), color: "purple", iconPath: "M8 4v16M16 4v16M4 8h16M4 16h16" },
-    { label: "Revenu (aujourd'hui)", value: formatMoney(revenue), color: "teal", iconPath: "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6" },
+    { label: t("kpi.booths"), value: String(booths.length), color: "azure", iconPath: "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", filter: [] },
+    { label: t("kpi.operational"), value: String(count("operational")), color: "green", iconPath: "M5 12l5 5l10 -10", filter: ["operational"] },
+    { label: t("kpi.attention"), value: String(count("attention")), color: "yellow", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["attention"] },
+    { label: t("kpi.errorOffline"), value: String(count("error") + count("offline")), color: "red", iconPath: "M12 9v4M12 16v.01M12 3l9 16H3z", filter: ["error", "offline"] },
+    { label: t("kpi.sessionsToday"), value: String(sessions), color: "purple", iconPath: "M8 4v16M16 4v16M4 8h16M4 16h16" },
+    { label: t("kpi.revenueToday"), value: formatMoney(revenue), color: "teal", iconPath: "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6" },
   ];
 }
 
@@ -110,7 +128,7 @@ export function statusDistribution(booths: readonly Booth[]): HTMLElement {
   );
 
   return el("div", { class: "card h-100" }, [
-    el("div", { class: "card-header" }, [el("h3", { class: "card-title" }, ["Répartition de la flotte"])]),
+    el("div", { class: "card-header" }, [el("h3", { class: "card-title" }, [t("overview.distribution")])]),
     el("div", { class: "card-body" }, [bar, legend]),
   ]);
 }
@@ -119,11 +137,21 @@ export function statusDistribution(booths: readonly Booth[]): HTMLElement {
 export function boothCard(booth: Booth, onOpen: (id: string) => void): HTMLElement {
   const card = el("div", { class: "card h-100 card-link cursor-pointer", role: "button", tabindex: "0" }, [
     el("div", { class: "card-body" }, [
-      el("div", { class: "d-flex align-items-start justify-content-between mb-2" }, [
-        el("div", {}, [el("div", { class: "fw-bold" }, [booth.label]), el("div", { class: "text-secondary small" }, [booth.location])]),
-        healthBadge(booth.health),
+      el("div", { class: "d-flex align-items-start justify-content-between mb-2 gap-2" }, [
+        el("div", { class: "text-truncate", style: "min-width:0" }, [
+          el("div", { class: "fw-bold text-truncate", title: booth.label }, [booth.label]),
+          el("div", { class: "text-secondary small text-truncate" }, [booth.location]),
+        ]),
+        el("div", { class: "flex-shrink-0 text-end" }, [
+          healthBadge(booth.health),
+          el("div", { class: "mt-1" }, [heartbeatBadge(booth.lastHeartbeatAt)]),
+          booth.signedAt ? el("div", { class: "mt-1" }, [el("span", { class: "badge bg-green-lt", title: "Machine signée (DRM device)" }, ["✓ signée"])]) : el("span", {}, []),
+        ]),
       ]),
-      el("div", { class: "d-flex align-items-center justify-content-between mb-2" }, [indicatorChips(booth), connectionBadge(booth)]),
+      el("div", { class: "d-flex align-items-center justify-content-between mb-2 gap-2" }, [
+        el("div", { class: "text-truncate", style: "min-width:0" }, [indicatorChips(booth)]),
+        el("div", { class: "flex-shrink-0" }, [connectionBadge(booth)]),
+      ]),
       el("div", { class: "row text-secondary small" }, [
         el("div", { class: "col" }, [`${booth.sessionsToday} sessions`]),
         el("div", { class: "col text-end" }, [relativeTime(booth.lastHeartbeatAt)]),
@@ -194,25 +222,25 @@ export function boothTable(
       el("td", { class: "text-secondary" }, [String(b.sessionsToday)]),
       el("td", { class: "text-secondary" }, [formatMoney(b.revenueTodayCents)]),
       el("td", { class: "text-secondary" }, [b.softwareVersion]),
-      el("td", { class: "text-secondary" }, [relativeTime(b.lastHeartbeatAt)]),
+      el("td", {}, [el("div", { class: "d-flex align-items-center gap-2" }, [heartbeatBadge(b.lastHeartbeatAt), el("span", { class: "text-secondary small" }, [relativeTime(b.lastHeartbeatAt)])])]),
     ]);
     tr.addEventListener("click", () => onOpen(b.id));
     return tr;
   });
 
   return el("div", { class: "card" }, [
-    el("div", { class: "card-header" }, [el("h3", { class: "card-title" }, ["Toutes les cabines"])]),
+    el("div", { class: "card-header" }, [el("h3", { class: "card-title" }, [t("overview.allBooths")])]),
     el("div", { class: "table-responsive" }, [
       el("table", { class: "table table-vcenter card-table table-hover" }, [
         el("thead", {}, [
           el("tr", {}, [
-            header("label", "Cabine"),
-            header("health", "Santé"),
-            header("connection", "Connexion"),
-            header("sessions", "Sessions"),
-            header("revenue", "Revenu"),
-            header("version", "Version"),
-            header("heartbeat", "Vu"),
+            header("label", t("table.booth")),
+            header("health", t("table.health")),
+            header("connection", t("table.connection")),
+            header("sessions", t("table.sessions")),
+            header("revenue", t("table.revenue")),
+            header("version", t("table.version")),
+            header("heartbeat", t("table.seen")),
           ]),
         ]),
         el("tbody", {}, rows),

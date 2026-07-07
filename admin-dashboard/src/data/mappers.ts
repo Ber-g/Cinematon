@@ -1,4 +1,4 @@
-import type { Booth, BoothTelemetry, Media } from "../domain/types";
+import type { Booth, BoothTelemetry, Media, MediaInstance, StorageLocation } from "../domain/types";
 
 // Conversion entre les lignes Postgres (snake_case) et le modèle de domaine
 // (camelCase). Les agrégats (sessions/revenu/historique/logs du jour) viennent de
@@ -13,12 +13,16 @@ interface BoothRow {
   address: string;
   gps_lat: number | null;
   gps_lng: number | null;
+  venue_type: string | null;
   health: Booth["health"];
   indicators: string[];
   software_version: string;
   last_heartbeat_at: string | null;
   telemetry: Partial<BoothTelemetry> | null;
   notes: string;
+  signed_at: string | null;
+  device_key_ref: string | null;
+  maintenance_hour: number | null;
 }
 
 const DEFAULT_TELEMETRY: BoothTelemetry = {
@@ -40,12 +44,16 @@ export function rowToBooth(row: BoothRow): Booth {
     address: row.address,
     gpsLat: row.gps_lat,
     gpsLng: row.gps_lng,
+    venueType: row.venue_type ?? null,
     health: row.health,
     indicators: (row.indicators ?? []) as Booth["indicators"],
     softwareVersion: row.software_version,
     lastHeartbeatAt: row.last_heartbeat_at ? new Date(row.last_heartbeat_at).getTime() : 0,
     telemetry: { ...DEFAULT_TELEMETRY, ...(row.telemetry ?? {}) },
     notes: row.notes ?? "",
+    signedAt: row.signed_at ? new Date(row.signed_at).getTime() : null,
+    deviceKeyRef: row.device_key_ref ?? null,
+    maintenanceHour: row.maintenance_hour ?? 3,
     // Agrégats calculés séparément (Phase 1 suite) :
     sessionsToday: 0,
     revenueTodayCents: 0,
@@ -75,6 +83,11 @@ interface MediaRow {
   synopsis: string;
   stills: string[] | null;
   learn_more_url: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  protection: "none" | "encrypted" | "drm" | null;
+  drm_scheme: string | null;
+  source_protected: boolean | null;
 }
 
 export function rowToMedia(row: MediaRow): Media {
@@ -99,6 +112,11 @@ export function rowToMedia(row: MediaRow): Media {
     synopsis: row.synopsis,
     stills: row.stills ?? [],
     learnMoreUrl: row.learn_more_url,
+    reviewedAt: row.reviewed_at ? new Date(row.reviewed_at).getTime() : null,
+    reviewedBy: row.reviewed_by,
+    protection: row.protection ?? "none",
+    drmScheme: row.drm_scheme,
+    sourceProtected: row.source_protected ?? false,
   };
 }
 
@@ -123,6 +141,74 @@ export function mediaToRow(m: Media): Record<string, unknown> {
     synopsis: m.synopsis,
     stills: m.stills,
     learn_more_url: m.learnMoreUrl,
+    // Protection : le fait d'être protégé (la clé DRM vit sur la borne signée, pas ici).
+    protection: m.protection ?? "none",
+    drm_scheme: m.drmScheme ?? null,
+    source_protected: m.sourceProtected ?? false,
+  };
+}
+
+// ── Supports de stockage & présence des médias ───────────────────────────────
+interface StorageLocationRow {
+  id: string;
+  booth_id: string;
+  type: StorageLocation["type"];
+  label: string;
+  capacity_bytes: number;
+  free_bytes: number;
+}
+
+export function rowToStorageLocation(row: StorageLocationRow): StorageLocation {
+  return {
+    id: row.id,
+    boothId: row.booth_id,
+    type: row.type,
+    label: row.label,
+    capacityBytes: Number(row.capacity_bytes),
+    freeBytes: Number(row.free_bytes),
+  };
+}
+
+interface MediaInstanceRow {
+  id: string;
+  media_id: string;
+  storage_location_id: string;
+}
+
+export function rowToMediaInstance(row: MediaInstanceRow): MediaInstance {
+  return { id: row.id, mediaId: row.media_id, storageLocationId: row.storage_location_id };
+}
+
+// ── Transactions (revenus, F9) ───────────────────────────────────────────────
+export interface TransactionRecord {
+  readonly id: string;
+  readonly boothId: string;
+  readonly organizationId: string;
+  readonly amountCents: number;
+  readonly currency: string;
+  readonly provider: string;
+  readonly createdAt: number; // epoch ms
+}
+
+interface TransactionRow {
+  id: string;
+  booth_id: string;
+  organization_id: string;
+  amount_cents: number;
+  currency: string | null;
+  provider: string | null;
+  created_at: string;
+}
+
+export function rowToTransaction(row: TransactionRow): TransactionRecord {
+  return {
+    id: row.id,
+    boothId: row.booth_id,
+    organizationId: row.organization_id,
+    amountCents: row.amount_cents,
+    currency: row.currency ?? "EUR",
+    provider: row.provider ?? "mock",
+    createdAt: new Date(row.created_at).getTime(),
   };
 }
 
@@ -136,6 +222,7 @@ export function boothToRow(b: Booth): Record<string, unknown> {
     address: b.address,
     gps_lat: b.gpsLat,
     gps_lng: b.gpsLng,
+    venue_type: b.venueType,
     health: b.health,
     indicators: b.indicators,
     software_version: b.softwareVersion,

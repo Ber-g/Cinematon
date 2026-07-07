@@ -29,6 +29,8 @@ export class SessionManager {
   constructor(
     private readonly boothId: string,
     private readonly organizationId: string,
+    /** Remontée optionnelle de la séance close (Supabase). Fire-and-forget : n'interrompt pas le parcours. */
+    private readonly sink?: (snapshot: { session: Session; plays: readonly Play[] }) => void,
   ) {}
 
   /** Démarre une session après un déverrouillage réussi. */
@@ -78,6 +80,7 @@ export class SessionManager {
     const snapshot = { session, plays: [...this.plays] };
     this.session = null;
     this.plays = [];
+    this.sink?.(snapshot); // remontée backend (si branché) — ne bloque pas le retour à l'accueil
     return snapshot;
   }
 

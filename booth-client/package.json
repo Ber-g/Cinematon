@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cinematon/domain": "*",
+    "@supabase/supabase-js": "^2.45.0",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

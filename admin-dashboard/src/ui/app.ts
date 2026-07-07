@@ -8,6 +8,13 @@ import { boothCard, boothTable, computeKpis, kpiTile, sortBooths, statusDistribu
 import { openBoothDrawer, openBoothForm } from "./drawer";
 import { loginScreen } from "./login";
 import { mediaPage } from "./media";
+import { revenuePage } from "./revenue";
+import { maintenancePage } from "./maintenance";
+import { rightsPage } from "./rights";
+import { sessionsPage } from "./sessions";
+import { settingsPage } from "./settings";
+import { mapPage, mountFleetMap } from "./mapView";
+import { t, getLang, setLang, LANGS, onLangChange } from "../i18n";
 
 const THEME_KEY = "cinematon.admin.theme.v1";
 
@@ -24,14 +31,24 @@ export class App {
   private editing = false;
   private filter: FilterState | null = null;
   private sort: SortState = { key: "health", dir: "asc" };
-  private view: "overview" | "media" = "overview";
+  private view: "overview" | "map" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" = "overview";
+  private themePref: "system" | "light" | "dark" = ((): "system" | "light" | "dark" => {
+    const v = localStorage.getItem(THEME_KEY);
+    return v === "light" || v === "dark" || v === "system" ? v : "system";
+  })();
 
   constructor(
     private readonly root: HTMLElement,
     private readonly store: FleetStore,
   ) {
     this.store.subscribe(() => this.render());
-    this.applyStoredTheme();
+    onLangChange(() => this.render());
+    document.documentElement.lang = getLang();
+    this.applyTheme();
+    // En mode « système », suivre les changements de préférence de l'OS en direct.
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (this.themePref === "system") this.applyTheme();
+    });
   }
 
   /** Point d'entrée : lance le chargement (async) puis rend. */
@@ -50,7 +67,23 @@ export class App {
       this.root.replaceChildren(el("div", { class: "page page-center" }, [el("div", { class: "text-secondary p-5" }, ["Chargement…"])]));
       return;
     }
-    const page = this.view === "media" ? mediaPage(this.store, () => this.render()) : this.overview();
+    this.maybeAcceptInvite();
+    const page =
+      this.view === "map"
+        ? mapPage(this.store)
+        : this.view === "media"
+        ? mediaPage(this.store, () => this.render())
+        : this.view === "revenue"
+          ? revenuePage(this.store)
+          : this.view === "rights"
+            ? (this.store.activeHasModule("rights") ? rightsPage(this.store, () => this.render()) : this.overview())
+            : this.view === "sessions"
+              ? sessionsPage(this.store)
+              : this.view === "maintenance"
+                ? maintenancePage(this.store, () => this.render())
+                : this.view === "settings"
+                  ? settingsPage(this.store, () => this.render())
+                  : this.overview();
     this.root.replaceChildren(
       this.sidebar(),
       this.topbar(),
@@ -61,11 +94,35 @@ export class App {
       ]),
     );
     if (this.view === "overview") this.mountGrid();
+    if (this.view === "map") mountFleetMap(this.store);
   }
 
-  private setView(v: "overview" | "media"): void {
+  private setView(v: "overview" | "map" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings"): void {
     this.view = v;
     this.render();
+  }
+
+  /** Accepte une invitation présente dans l'URL (`?invite=token`), une seule fois. */
+  private inviteHandled = false;
+  private maybeAcceptInvite(): void {
+    if (this.inviteHandled) return;
+    this.inviteHandled = true;
+    const token = new URLSearchParams(location.search).get("invite");
+    if (!token) return;
+    void this.store.acceptInvitation(token).then((res) => {
+      const url = new URL(location.href);
+      url.searchParams.delete("invite");
+      history.replaceState({}, "", url.toString());
+      window.setTimeout(() => {
+        if (res.ok) {
+          this.view = "settings";
+          this.render();
+          alert("Invitation acceptée — vous avez rejoint l'organisation.");
+        } else {
+          alert("Invitation : " + (res.error ?? "échec"));
+        }
+      }, 50);
+    });
   }
 
   /** Cabines visibles → filtrées → triées. */
@@ -87,10 +144,16 @@ export class App {
         el("h1", { class: "navbar-brand fs-2 fw-bold m-0" }, ["CINEMATON"]),
         el("div", { class: "collapse navbar-collapse", id: "sidebar-menu" }, [
           el("ul", { class: "navbar-nav pt-lg-2 w-100" }, [
-            navItem("Vue d'ensemble", "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
-            navItem("Médias", "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", this.view === "media", () => this.setView("media")),
-            navItem("Sessions", "M8 4v16M16 4v16M4 8h16M4 16h16", false),
-            navItem("Réglages", "M12 15a3 3 0 1 0 0 -6a3 3 0 0 0 0 6z", false),
+            navItem(t("nav.overview"), "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
+            navItem(t("nav.map"), "M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z", this.view === "map", () => this.setView("map")),
+            navItem(t("nav.media"), "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", this.view === "media", () => this.setView("media")),
+            navItem(t("nav.revenue"), "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6", this.view === "revenue", () => this.setView("revenue")),
+            this.store.activeHasModule("rights")
+              ? navItem(t("nav.rights"), "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", this.view === "rights", () => this.setView("rights"))
+              : navItem(t("nav.rights"), "M9 5h6a2 2 0 0 1 2 2v12l-5 -3l-5 3v-12a2 2 0 0 1 2 -2z", false, undefined, true),
+            navItem(t("nav.sessions"), "M8 4v16M16 4v16M4 8h16M4 16h16", this.view === "sessions", () => this.setView("sessions")),
+            navItem(t("nav.maintenance"), "M12 3l1.5 3.5l3.5 1.5l-3.5 1.5l-1.5 3.5l-1.5 -3.5l-3.5 -1.5l3.5 -1.5zM6 14l.7 1.8l1.8 .7l-1.8 .7l-.7 1.8l-.7 -1.8l-1.8 -.7l1.8 -.7z", this.view === "maintenance", () => this.setView("maintenance")),
+            navItem(t("nav.organization"), "M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16", this.view === "settings", () => this.setView("settings")),
           ]),
         ]),
       ]),
@@ -121,20 +184,30 @@ export class App {
             })(),
           ]);
 
-    const themeBtn = el("button", { class: "btn btn-icon", type: "button", title: "Basculer clair/sombre" }, [
-      icon("M12 3a6 6 0 0 0 0 12a6 6 0 0 0 0 -12zM12 3v0M12 21v-3M3 12h3M18 12h3", 18),
+    const themeIcon =
+      this.themePref === "system"
+        ? "M3 5h18v10H3zM8 21h8M12 17v4" // moniteur
+        : this.themePref === "light"
+          ? "M12 3a6 6 0 0 0 0 12a6 6 0 0 0 0 -12zM12 3v0M12 21v-3M3 12h3M18 12h3" // soleil
+          : "M12 3a9 9 0 1 0 9 9c-4.97 0 -9 -4.03 -9 -9z"; // lune
+    const themeLabel = this.themePref === "system" ? "système" : this.themePref === "light" ? "clair" : "sombre";
+    const themeBtn = el("button", { class: "btn btn-icon", type: "button", title: `Thème : ${themeLabel} (cliquer pour changer)` }, [icon(themeIcon, 18)]);
+    themeBtn.addEventListener("click", () => this.cycleTheme());
+
+    const langBtn = el("button", { class: "btn btn-icon", type: "button", title: "Langue / Language" }, [
+      el("span", { class: "fw-bold small" }, [getLang().toUpperCase()]),
     ]);
-    themeBtn.addEventListener("click", () => this.toggleTheme());
+    langBtn.addEventListener("click", () => setLang(getLang() === LANGS[0] ? LANGS[1] : LANGS[0]));
 
     const editBtn = el("button", { class: `btn ${this.editing ? "btn-primary" : ""}`, type: "button" }, [
       icon("M4 20h4l10 -10l-4 -4l-10 10v4", 18),
-      el("span", { class: "d-none d-md-inline" }, [this.editing ? "Terminer" : "Éditer"]),
+      el("span", { class: "d-none d-md-inline" }, [this.editing ? t("action.editDone") : t("action.edit")]),
     ]);
     editBtn.addEventListener("click", () => this.toggleEditing());
 
     const addBtn = el("button", { class: "btn btn-primary", type: "button" }, [
       icon("M12 5v14M5 12h14", 18),
-      el("span", { class: "d-none d-sm-inline" }, ["Ajouter"]),
+      el("span", { class: "d-none d-sm-inline" }, [t("action.add")]),
     ]);
     addBtn.addEventListener("click", () => openBoothForm(this.store, null));
 
@@ -142,6 +215,7 @@ export class App {
       el("div", { class: "container-xl" }, [
         el("div", { class: "navbar-nav flex-row order-md-last ms-auto align-items-center gap-2" }, [
           editBtn,
+          langBtn,
           themeBtn,
           el("div", { class: "nav-item dropdown" }, [roleBtn, roleMenu]),
           addBtn,
@@ -156,29 +230,32 @@ export class App {
     const kpis = computeKpis(all);
     const booths = this.currentBooths();
 
+    // Auto-position : Gridstack place les tuiles dans les colonnes ACTIVES (6 → 3 → 2
+    // → 1 selon le breakpoint). Figer gs-x/gs-y sur 6 colonnes cassait la mise en page
+    // dès que le responsive tombait à 3 colonnes (tuiles rabattues et empilées).
     const gridItems = kpis.map((k, i) =>
-      el("div", { class: "grid-stack-item", "gs-id": `kpi-${i}`, "gs-w": "1", "gs-h": "1", "gs-x": String(i % 6), "gs-y": "0" }, [
+      el("div", { class: "grid-stack-item", "gs-id": `kpi-${i}`, "gs-w": "1", "gs-h": "1", "gs-auto-position": "true" }, [
         el("div", { class: "grid-stack-item-content" }, [
           kpiTile(k, this.isKpiActive(k), k.filter !== undefined && !this.editing, () => this.applyFilter(k)),
         ]),
       ]),
     );
 
-    const cards = booths.map((b) => el("div", { class: "col-sm-6 col-xl-4" }, [boothCard(b, (id) => this.openDrawer(id))]));
+    const cards = booths.map((b) => el("div", { class: "col-12 col-md-6" }, [boothCard(b, (id) => this.openDrawer(id))]));
 
     return el("div", {}, [
       el("div", { class: "mb-3" }, [
-        el("h2", { class: "page-title m-0" }, ["Vue d'ensemble de la flotte"]),
+        el("h2", { class: "page-title m-0" }, [t("overview.title")]),
         el("div", { class: "text-secondary" }, [
-          this.store.isGlobalAdmin ? "Toutes les cabines (global admin)." : "Les cabines de votre organisation.",
+          this.store.isGlobalAdmin ? t("overview.subtitleAdmin") : t("overview.subtitle"),
           this.editing ? " · Glissez les tuiles pour réorganiser." : "",
         ]),
       ]),
       el("div", { class: "grid-stack" }, gridItems),
       this.filterBanner(),
       el("div", { class: "row row-cards mt-1" }, [
-        el("div", { class: "col-xl-4" }, [statusDistribution(all)]),
-        el("div", { class: "col-xl-8" }, [el("div", { class: "row row-cards" }, cards)]),
+        el("div", { class: "col-12 col-xl-4" }, [statusDistribution(all)]),
+        el("div", { class: "col-12 col-xl-8" }, [el("div", { class: "row row-cards" }, cards)]),
       ]),
       el("div", { class: "mt-3" }, [boothTable(booths, this.sort, (k) => this.applySort(k), (id) => this.openDrawer(id))]),
     ]);
@@ -223,8 +300,14 @@ export class App {
 
   // ── Gridstack : montage responsive + persistance ──────────────────────────
   private mountGrid(): void {
+    // Libère l'ancienne instance (et son listener resize) avant de re-monter sur le
+    // nouveau DOM — sinon les instances s'accumulent à chaque navigation.
+    this.grid?.destroy(false);
     const gridEl = this.root.querySelector<HTMLElement>(".grid-stack");
-    if (!gridEl) return;
+    if (!gridEl) {
+      this.grid = undefined;
+      return;
+    }
     this.applySavedLayout(gridEl);
     this.grid = GridStack.init(
       {
@@ -233,7 +316,9 @@ export class App {
         margin: 8,
         staticGrid: !this.editing,
         float: false,
-        columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 576, c: 1 }, { w: 768, c: 2 }, { w: 1200, c: 3 }] },
+        // columnMax: 6 → au-dessus du plus grand breakpoint, Gridstack plafonne à 6
+        // colonnes (sans ça il retombe sur le défaut 12 → tuiles KPI écrasées > 1200px).
+        columnOpts: { columnMax: 6, breakpointForWindow: true, breakpoints: [{ w: 576, c: 1 }, { w: 768, c: 2 }, { w: 1200, c: 3 }] },
       },
       gridEl,
     );
@@ -267,18 +352,38 @@ export class App {
   }
 
   // ── Thème clair/sombre ────────────────────────────────────────────────────
-  private applyStoredTheme(): void {
-    document.documentElement.setAttribute("data-bs-theme", localStorage.getItem(THEME_KEY) ?? "dark");
+  /** Applique le thème effectif : « système » résout via la préférence de l'OS. */
+  private applyTheme(): void {
+    const effective =
+      this.themePref === "system"
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light"
+        : this.themePref;
+    document.documentElement.setAttribute("data-bs-theme", effective);
   }
-  private toggleTheme(): void {
-    const next = document.documentElement.getAttribute("data-bs-theme") === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-bs-theme", next);
-    localStorage.setItem(THEME_KEY, next);
+  /** Cycle système → clair → sombre → système. */
+  private cycleTheme(): void {
+    this.themePref = this.themePref === "system" ? "light" : this.themePref === "light" ? "dark" : "system";
+    localStorage.setItem(THEME_KEY, this.themePref);
+    this.applyTheme();
+    this.render(); // met à jour l'icône/le libellé du bouton
   }
 }
 
 // ── Helpers de navigation ────────────────────────────────────────────────────
-function navItem(label: string, path: string, active: boolean, onClick?: () => void): HTMLElement {
+function navItem(label: string, path: string, active: boolean, onClick?: () => void, locked?: boolean): HTMLElement {
+  // Module non accordé (CIN-080) : item visible mais GRISÉ + cadenas (upsell), non cliquable.
+  if (locked) {
+    const lockPath = "M6 11V7a4 4 0 0 1 8 0v4M5 11h10a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1H5a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1z";
+    const link = el("a", { class: "nav-link disabled text-secondary opacity-75", href: "#", "aria-disabled": "true", title: t("nav.locked") }, [
+      el("span", { class: "nav-link-icon" }, [icon(path, 20)]),
+      el("span", { class: "nav-link-title" }, [label]),
+      el("span", { class: "nav-link-icon ms-auto" }, [icon(lockPath, 16)]),
+    ]);
+    link.addEventListener("click", (e) => e.preventDefault());
+    return el("li", { class: "nav-item" }, [link]);
+  }
   const link = el("a", { class: `nav-link ${active ? "active" : ""}`, href: "#" }, [
     el("span", { class: "nav-link-icon" }, [icon(path, 20)]),
     el("span", { class: "nav-link-title" }, [label]),

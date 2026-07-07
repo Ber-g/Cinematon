@@ -19,6 +19,10 @@ export interface Organization {
   readonly id: string;
   name: string;
   type: OrganizationType;
+  /** Région d'opération. Règle : 1 org = 1 région (code libre "FR", "BE"…), nullable au départ. */
+  region?: string | null;
+  /** Devise ISO-4217 (défaut EUR). Pilote le formatage monétaire de l'org. */
+  currency?: string;
   settings: { themeId?: string; whitelistTags: string[] };
 }
 
@@ -72,7 +76,35 @@ export interface Media {
   readonly synopsis: string;
   readonly stills: readonly string[];
   readonly learnMoreUrl: string | null;
+  /** Validation humaine (opérateur) : epoch ms de la validation, `null` si non validée. */
+  readonly reviewedAt: number | null;
+  /** Id de l'utilisateur ayant validé (audit), `null` si non validée. */
+  readonly reviewedBy: string | null;
+  /** Protection du fichier (anti-copie). La DRM elle-même est portée par la borne signée. */
+  readonly protection?: "none" | "encrypted" | "drm";
+  /** Schéma DRM si `protection = 'drm'` (widevine, playready, fairplay, custom). */
+  readonly drmScheme?: string | null;
+  /** Le master a été livré déjà protégé par le distributeur. */
+  readonly sourceProtected?: boolean;
 }
+
+// ── Vocabulaire d'humeurs (F6) ───────────────────────────────────────────────
+// SOURCE UNIQUE de la taxonomie d'humeurs, partagée par le back-office (saisie),
+// le moteur de reco (match `Media.moods`) et le thème cabine (palette). Une humeur
+// hors de cette liste ne matche NI la reco NI une palette → à ne jamais saisir en
+// texte libre. Choix @design : 7 humeurs à température/saturation cohérentes.
+export const CANONICAL_MOODS = [
+  { key: "apaisant", label: "Apaisant" },
+  { key: "mélancolique", label: "Mélancolique" },
+  { key: "énergique", label: "Énergique" },
+  { key: "léger", label: "Léger" },
+  { key: "joyeux", label: "Joyeux" },
+  { key: "tendu", label: "Tendu" },
+  { key: "sombre", label: "Sombre" },
+] as const;
+
+/** Clé d'humeur canonique (union dérivée de {@link CANONICAL_MOODS}). */
+export type CanonicalMood = (typeof CANONICAL_MOODS)[number]["key"];
 
 export interface StorageLocation {
   readonly id: string;
@@ -131,7 +163,84 @@ export interface Booth {
   address: string;
   gpsLat: number | null;
   gpsLng: number | null;
+  /** Catégorie du LIEU où est posée la cabine (bar, musée, festival…). Propre à la cabine. */
+  venueType: string | null;
   notes: string;
+  /** Machine signée (DRM) : epoch ms de signature du device, `null` si non signée. */
+  readonly signedAt?: number | null;
+  /** Référence côté serveur de la clé/cert DRM du device — jamais la clé elle-même. */
+  readonly deviceKeyRef?: string | null;
+  /** Heure locale (0-23) de la fenêtre de MAJ non urgente (F10). */
+  readonly maintenanceHour?: number;
+}
+
+// ── Notifications (F15) ──────────────────────────────────────────────────────
+// Modèle piloté par CATALOGUE : `type` est une clé libre du registry ci-dessous,
+// jamais un enum figé en base → ajouter un type = 0 migration. Préférences à
+// l'échelle du USER (globales, tous orgs confondus). Livraison MVP = in-app.
+export type NotificationSeverity = "critical" | "warning" | "info";
+export type NotificationChannel = "in_app" | "email" | "push" | "sms";
+
+/** Entrée du catalogue de types de notification (définition, pas instance). */
+export interface NotificationTypeDef {
+  readonly key: string;
+  /** Regroupement pour la page de réglages (ex. "Cabines", "Paiements"). */
+  readonly category: string;
+  readonly label: string;
+  readonly severity: NotificationSeverity;
+  /** Canaux cochés par défaut tant que le user n'a pas d'override. */
+  readonly defaultChannels: readonly NotificationChannel[];
+  /** Rôles pouvant recevoir/voir ce type ; vide = tous les rôles. */
+  readonly roleScope: readonly OrgRole[];
+  /** Réservé au global_admin (debug/sécurité) — invisible pour les opérateurs. */
+  readonly adminOnly?: boolean;
+}
+
+/** Une notification délivrée à un user (instance). */
+export interface Notification {
+  readonly id: string;
+  readonly userId: string;
+  readonly organizationId: string | null;
+  readonly type: string;
+  readonly severity: NotificationSeverity;
+  readonly title: string;
+  readonly body: string;
+  readonly boothId: string | null;
+  readonly data: Record<string, unknown>;
+  readonly readAt: number | null;
+  readonly createdAt: number;
+}
+
+/** Préférence GLOBALE (per-user) pour un type. Absente ⇒ défauts du catalogue.
+ *  `channels` vide ⇒ notif désactivée (muette) pour ce type. */
+export interface NotificationPreference {
+  readonly userId: string;
+  readonly type: string;
+  readonly channels: readonly NotificationChannel[];
+}
+
+/**
+ * CATALOGUE des types de notification — source unique consommée par le rendu de
+ * la cloche ET la page de réglages. Amorcé avec des types dérivés de la
+ * télémétrie existante ; la liste définitive sera fournie plus tard. Ajouter une
+ * entrée ici suffit : aucun changement de schéma ni d'UI requis.
+ */
+export const NOTIFICATION_TYPES: readonly NotificationTypeDef[] = [
+  { key: "booth_offline", category: "Cabines", label: "Cabine hors ligne", severity: "critical", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "storage_low", category: "Cabines", label: "Stockage faible", severity: "warning", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "temperature_high", category: "Cabines", label: "Température élevée", severity: "warning", defaultChannels: ["in_app"], roleScope: [] },
+  { key: "payment_failed", category: "Paiements", label: "Paiement en échec", severity: "warning", defaultChannels: ["in_app"], roleScope: ["super_user", "manager"] },
+  { key: "update_available", category: "Maintenance", label: "Mise à jour disponible", severity: "info", defaultChannels: ["in_app"], roleScope: ["super_user", "manager"] },
+];
+
+/** Résout les canaux effectifs d'un type pour un user (override sinon défaut). */
+export function resolveChannels(
+  typeKey: string,
+  prefs: readonly NotificationPreference[],
+): readonly NotificationChannel[] {
+  const override = prefs.find((p) => p.type === typeKey);
+  if (override) return override.channels;
+  return NOTIFICATION_TYPES.find((t) => t.key === typeKey)?.defaultChannels ?? [];
 }
 
 // ── Sessions & lectures ──────────────────────────────────────────────────────
