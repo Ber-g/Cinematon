@@ -2,6 +2,8 @@
 // le parcours ne connaît que applyMoodTheme/resetMoodTheme — la palette vit ici.
 // Les animations complexes viendront se greffer sur ces mêmes variables.
 
+import type { CanonicalMood } from "@cinematon/domain";
+
 export interface MoodPalette {
   /** Couleur d'accent (boutons, halos, éléments actifs). */
   readonly accent: string;
@@ -20,7 +22,9 @@ export const DEFAULT_PALETTE: MoodPalette = {
 
 // Choix @design : chaque humeur porte une température et une saturation cohérentes
 // avec son ressenti. Encre sombre partout (accents mi-tons) → contraste lisible.
-const MOOD_PALETTES: Readonly<Record<string, MoodPalette>> = {
+// Clé = humeur canonique du domaine : TS impose une palette pour CHAQUE humeur
+// (ajouter une humeur au domaine sans palette ici casse le build → pas d'oubli).
+const MOOD_PALETTES: Readonly<Record<CanonicalMood, MoodPalette>> = {
   apaisant: { accent: "#6fbfa8", accentInk: "#06201a", halo: "#0e1a18" },
   mélancolique: { accent: "#7d8fce", accentInk: "#0a1020", halo: "#12131f" },
   énergique: { accent: "#ef8354", accentInk: "#1f0e06", halo: "#1f1410" },
@@ -32,7 +36,8 @@ const MOOD_PALETTES: Readonly<Record<string, MoodPalette>> = {
 
 export function paletteForMood(mood: string | null): MoodPalette {
   if (mood === null) return DEFAULT_PALETTE;
-  return MOOD_PALETTES[mood] ?? DEFAULT_PALETTE;
+  // `mood` vient du catalogue (string) : lookup tolérant, repli neutre si non canonique.
+  return (MOOD_PALETTES as Record<string, MoodPalette>)[mood] ?? DEFAULT_PALETTE;
 }
 
 /** Applique la palette d'une humeur (transition gérée en CSS sur :root). */

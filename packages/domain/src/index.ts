@@ -88,6 +88,24 @@ export interface Media {
   readonly sourceProtected?: boolean;
 }
 
+// ── Vocabulaire d'humeurs (F6) ───────────────────────────────────────────────
+// SOURCE UNIQUE de la taxonomie d'humeurs, partagée par le back-office (saisie),
+// le moteur de reco (match `Media.moods`) et le thème cabine (palette). Une humeur
+// hors de cette liste ne matche NI la reco NI une palette → à ne jamais saisir en
+// texte libre. Choix @design : 7 humeurs à température/saturation cohérentes.
+export const CANONICAL_MOODS = [
+  { key: "apaisant", label: "Apaisant" },
+  { key: "mélancolique", label: "Mélancolique" },
+  { key: "énergique", label: "Énergique" },
+  { key: "léger", label: "Léger" },
+  { key: "joyeux", label: "Joyeux" },
+  { key: "tendu", label: "Tendu" },
+  { key: "sombre", label: "Sombre" },
+] as const;
+
+/** Clé d'humeur canonique (union dérivée de {@link CANONICAL_MOODS}). */
+export type CanonicalMood = (typeof CANONICAL_MOODS)[number]["key"];
+
 export interface StorageLocation {
   readonly id: string;
   readonly boothId: string;
