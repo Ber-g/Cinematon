@@ -11,6 +11,11 @@ insert into storage.buckets (id, name, public)
 values ('media', 'media', false)
 on conflict (id) do nothing;
 
+-- Policies ré-exécutables (re-run sans erreur si déjà présentes).
+drop policy if exists "media_read" on storage.objects;
+drop policy if exists "media_write" on storage.objects;
+drop policy if exists "media_delete" on storage.objects;
+
 -- Lecture : membre de l'org propriétaire du dossier (ou global_admin).
 create policy "media_read" on storage.objects for select to authenticated
 using (
