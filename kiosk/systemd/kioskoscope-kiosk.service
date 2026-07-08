@@ -1,0 +1,20 @@
+[Unit]
+Description=Kioskoscope kiosk (Chromium plein écran)
+After=graphical.target kioskoscope-agent.service
+Wants=kioskoscope-agent.service
+
+[Service]
+Type=simple
+User=kiosk
+Environment=DISPLAY=:0
+# Le booth-client (build statique) est servi en local (ex. par un serveur léger),
+# ou chargé via file://. URL à ajuster au packaging final du front.
+ExecStart=/usr/bin/chromium --kiosk --incognito --noerrdialogs --disable-infobars \
+  --disable-pinch --overscroll-history-navigation=0 --check-for-update-interval=31536000 \
+  http://localhost:8080/
+# Watchdog : si Chromium tombe/est fermé, on relance → jamais d'écran figé (F4).
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,20 @@
+[Unit]
+Description=Kioskoscope agent local (services système de la borne)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kiosk
+# Node natif, aucune dépendance à installer.
+ExecStart=/usr/bin/node /opt/kioskoscope/kiosk/agent/agent.mjs
+Restart=always
+RestartSec=3
+# Durcissement : l'agent ne peut pas écrire hors de ses chemins prévus.
+NoNewPrivileges=false
+ProtectSystem=strict
+ReadWritePaths=/var/log
+Environment=KIOSK_AGENT_TOKEN_FILE=/etc/kioskoscope/agent.token
+
+[Install]
+WantedBy=multi-user.target

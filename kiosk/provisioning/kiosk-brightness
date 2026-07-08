@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Écrit une luminosité (entier) dans le backlight. Le seul à toucher le sysfs (root).
+# Appelé UNIQUEMENT via sudo par l'agent, avec un argument numérique (validé sudoers).
+set -euo pipefail
+value="${1:?valeur manquante}"
+[[ "$value" =~ ^[0-9]+$ ]] || { echo "valeur non numérique" >&2; exit 2; }
+bl="${KIOSK_BACKLIGHT:-/sys/class/backlight/intel_backlight}"
+echo "$value" > "$bl/brightness"

@@ -1,0 +1,8 @@
+# Kioskoscope — commandes privilégiées autorisées à l'utilisateur `kiosk` (agent local).
+# Liste blanche EXHAUSTIVE : tout le reste (rm, bash, éditeurs…) est refusé.
+# Déployer dans /etc/sudoers.d/kioskoscope (mode 0440, validé par visudo -c).
+kiosk ALL=(root) NOPASSWD: /usr/bin/systemctl restart kioskoscope-kiosk.service
+kiosk ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
+kiosk ALL=(root) NOPASSWD: /usr/bin/apt-get update
+kiosk ALL=(root) NOPASSWD: /usr/bin/apt-get -y upgrade
+kiosk ALL=(root) NOPASSWD: /usr/local/sbin/kiosk-brightness [0-9]*
