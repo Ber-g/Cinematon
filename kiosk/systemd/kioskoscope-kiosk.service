@@ -1,7 +1,7 @@
 [Unit]
 Description=Kioskoscope kiosk (Chromium plein écran)
-After=graphical.target kioskoscope-agent.service
-Wants=kioskoscope-agent.service
+After=graphical.target kioskoscope-agent.service kioskoscope-web.service
+Wants=kioskoscope-agent.service kioskoscope-web.service
 
 [Service]
 Type=simple

@@ -94,5 +94,8 @@ avec le front) est le seul à lire le jeton sur disque — il reste hors du bund
 - ✅ Agent local (Wi-Fi/power/display/volume/system-info + os-update) + systemd + provisioning + sécurité.
 - ✅ **Câblage `booth-client`** : `setup/kioskAgent.ts` (client + `AgentWifiAdapter` + réglages
   réels), `main.ts` bascule agent vs stubs selon `/kiosk-config.json`. Build vert.
-  ⏳ Reste = **vérif sur borne réelle** + le petit serveur local qui sert front + `/kiosk-config.json`.
+- ✅ **Serveur local** `server/server.mjs` (Node natif, 127.0.0.1) : sert le build `booth-client`
+  à Chromium **et** `/kiosk-config.json` (jeton lu au runtime, hors bundle ; même origine, pas de
+  CORS). Anti-traversal vérifié. Service `kioskoscope-web.service`. ⏳ Reste = **vérif sur borne réelle**
+  (déployer le build dans `KIOSK_WEB_ROOT`).
 - ⏳ **CIN-077** : canal de commande MAJ OS (migration + relais booth-client + UI dashboard).

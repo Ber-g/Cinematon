@@ -1,0 +1,18 @@
+[Unit]
+Description=Kioskoscope serveur local (front booth-client + config borne)
+After=kioskoscope-agent.service
+Wants=kioskoscope-agent.service
+
+[Service]
+Type=simple
+User=kiosk
+ExecStart=/usr/bin/node /opt/kioskoscope/kiosk/server/server.mjs
+Restart=always
+RestartSec=3
+Environment=KIOSK_WEB_ROOT=/opt/kioskoscope/booth-client/dist
+Environment=KIOSK_AGENT_TOKEN_FILE=/etc/kioskoscope/agent.token
+# Durcissement : lecture seule sauf rien (sert des fichiers, lit le jeton).
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

@@ -32,13 +32,20 @@ visudo -c
 echo "→ Journal de l'agent"
 install -m 0640 -o "$KIOSK_USER" -g "$KIOSK_USER" /dev/null /var/log/kioskoscope-agent.log 2>/dev/null || true
 
-echo "→ Services systemd (agent + kiosk)"
+echo "→ Services systemd (agent + web + kiosk)"
 install -m 0644 "$REPO/kiosk/systemd/kioskoscope-agent.service" /etc/systemd/system/
+install -m 0644 "$REPO/kiosk/systemd/kioskoscope-web.service" /etc/systemd/system/
 install -m 0644 "$REPO/kiosk/systemd/kioskoscope-kiosk.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now kioskoscope-agent.service
-# Le service kiosk (Chromium) suppose un serveur X + le front servi en local :
-# à activer une fois l'affichage/front en place — voir README.
+# Le serveur web (front + /kiosk-config.json) suppose le build booth-client déployé
+# dans KIOSK_WEB_ROOT (/opt/kioskoscope/booth-client/dist) — voir README.
+if [[ -f /opt/kioskoscope/booth-client/dist/index.html ]]; then
+  systemctl enable --now kioskoscope-web.service
+else
+  echo "  ⚠ booth-client/dist absent : déployez le build puis 'systemctl enable --now kioskoscope-web.service'"
+fi
+# Le service kiosk (Chromium) suppose un serveur X : à activer une fois l'affichage prêt.
 echo "  (kiosk Chromium : 'systemctl enable --now kioskoscope-kiosk.service' quand l'affichage est prêt)"
 
 echo "✓ Provisioning terminé. Agent local actif sur 127.0.0.1:4599."
