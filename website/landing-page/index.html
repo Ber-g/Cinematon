@@ -8,7 +8,7 @@
   <!-- Fonts: sans (logo) + Libre Bodoni (seule serif du site). Une seule requête. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Bodoni:ital,wght@1,500&family=Open+Sans:wght@600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Bodoni:ital,wght@0,500;1,500&family=Open+Sans:wght@600&display=swap" rel="stylesheet">
 
   <style>
     /* =====================================================================
@@ -70,19 +70,21 @@
       font-weight: 600;
       letter-spacing: 0.02em;
 
-      /* Effet fil : intérieur transparent, contour encre. */
-      color: transparent;
+      /* Face avant OPAQUE (couleur du fond) : occulte les copies empilées
+         derrière → les hachures ne traversent plus l'intérieur des lettres. */
+      color: var(--color-bg);
       -webkit-text-stroke: var(--logo-stroke) var(--color-ink);
 
-      /* Relief 3D par ombres empilées. */
+      /* Relief 3D rayé qui RECULE en z : copies décalées vers le haut-gauche
+         (négatif), alternance blanc/noir = hachures. */
       text-shadow:
-        1px 1px 0 #ffffff, 2px 2px 0 var(--color-ink),
-        3px 3px 0 #ffffff, 4px 4px 0 var(--color-ink),
-        5px 5px 0 #ffffff, 6px 6px 0 var(--color-ink);
+        -1px -1px 0 #ffffff, -2px -2px 0 var(--color-ink),
+        -3px -3px 0 #ffffff, -4px -4px 0 var(--color-ink),
+        -5px -5px 0 #ffffff, -6px -6px 0 var(--color-ink);
     }
 
     /* =====================================================================
-       NAVIGATION — liens serif (Libre Bodoni italique).
+       NAVIGATION — liens serif (Libre Bodoni).
        ===================================================================== */
     .footer-nav {
       display: flex;
@@ -94,7 +96,6 @@
       font-family: var(--font-serif);
       font-size: 0.95rem;
       font-weight: 500;
-      font-style: italic;
       text-transform: lowercase;
       color: var(--color-link);
       text-decoration: none;
