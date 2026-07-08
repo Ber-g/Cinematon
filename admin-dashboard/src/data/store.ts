@@ -3,6 +3,30 @@ import { MOCK_BOOTHS, MOCK_MEMBERSHIPS, MOCK_ORGS, MOCK_USERS } from "./mockFlee
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { boothToRow, mediaToRow, rowToBooth, rowToMedia, rowToMediaInstance, rowToStorageLocation, rowToTransaction, type TransactionRecord } from "./mappers";
 import { sha256Hex } from "./hash";
+import { buildAccessEntry, type OperatorRole } from "@kioskoscope/domain";
+
+/** Accès opérateur cabine (CIN-073) — vue back-office (jamais le PIN, seulement méta). */
+export interface OperatorAccessRecord {
+  readonly id: string;
+  readonly identifier: string;
+  readonly role: OperatorRole;
+  readonly boothId: string | null;
+  readonly expiresAt: string | null;
+  readonly revoked: boolean;
+  readonly label: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** Ligne du journal d'accès opérateur (remontée par la Kiosk). */
+export interface OperatorLogRecord {
+  readonly id: string;
+  readonly at: string;
+  readonly boothId: string | null;
+  readonly identifier: string | null;
+  readonly action: string;
+  readonly detail: string | null;
+}
 
 /** Agrégats de lecture d'un média (dashboard F8). */
 export interface MediaStat {
@@ -609,6 +633,87 @@ export class FleetStore {
     if (error) return { ok: false, error: error.message };
     await this.loadFromSupabase();
     return { ok: true };
+  }
+
+  // ── Accès opérateur cabine (CIN-073, F17 volet A) ────────────────────────────
+  // Le back-office gère les identifiants+PIN d'accès au menu opérateur ; la Kiosk les
+  // met en cache et valide HORS LIGNE. Le PIN est haché ici (domaine, source unique) et
+  // n'est JAMAIS relu : seule l'empreinte part en base. Écriture = super_user/manager (RLS).
+  async listOperatorAccess(orgId: string): Promise<OperatorAccessRecord[]> {
+    if (this.mode !== "supabase") return [];
+    const { data } = await supabase!
+      .from("operator_access")
+      .select("id,identifier,role,booth_id,expires_at,revoked,label,created_at,updated_at")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false });
+    return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      identifier: String(r.identifier),
+      role: String(r.role) as OperatorRole,
+      boothId: (r.booth_id as string | null) ?? null,
+      expiresAt: (r.expires_at as string | null) ?? null,
+      revoked: Boolean(r.revoked),
+      label: String(r.label ?? ""),
+      createdAt: String(r.created_at ?? ""),
+      updatedAt: String(r.updated_at ?? ""),
+    }));
+  }
+
+  async createOperatorAccess(
+    orgId: string,
+    params: { identifier: string; pin: string; role: OperatorRole; boothId?: string | null; expiresAt?: string | null; label?: string },
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    // Hachage PBKDF2 côté back-office (domaine) : le PIN clair ne quitte jamais ce navigateur.
+    const entry = await buildAccessEntry({ identifier: params.identifier, pin: params.pin, role: params.role });
+    const { error } = await supabase!.from("operator_access").insert({
+      organization_id: orgId,
+      booth_id: params.boothId ?? null,
+      identifier: entry.identifier,
+      pin_hash: entry.pinHash,
+      salt: entry.salt,
+      iterations: entry.iterations,
+      role: entry.role,
+      expires_at: params.expiresAt ?? null,
+      label: params.label ?? "",
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  async setOperatorAccessRevoked(id: string, revoked: boolean): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("operator_access").update({ revoked }).eq("id", id);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  async setOperatorAccessExpiry(id: string, expiresAt: string | null): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("operator_access").update({ expires_at: expiresAt }).eq("id", id);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  async deleteOperatorAccess(id: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    const { error } = await supabase!.from("operator_access").delete().eq("id", id);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  async listOperatorAccessLog(orgId: string, limit = 100): Promise<OperatorLogRecord[]> {
+    if (this.mode !== "supabase") return [];
+    const { data } = await supabase!
+      .from("operator_access_log")
+      .select("id,at,booth_id,identifier,action,detail")
+      .eq("organization_id", orgId)
+      .order("at", { ascending: false })
+      .limit(limit);
+    return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      at: String(r.at),
+      boothId: (r.booth_id as string | null) ?? null,
+      identifier: (r.identifier as string | null) ?? null,
+      action: String(r.action),
+      detail: (r.detail as string | null) ?? null,
+    }));
   }
 
   // ── Intégrations de paiement (config non-secrète) ────────────────────────────

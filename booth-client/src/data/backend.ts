@@ -1,4 +1,6 @@
 import type { Film, Play, Session } from "../domain/types";
+import type { AccessLogEntry } from "../setup/accessCache";
+import type { AccessEntry, AccessTable, OperatorRole } from "../setup/auth";
 import { supabase } from "./supabase";
 
 // Adaptateur backend de la Kiosk : lit le catalogue réel (médias de son org) et
@@ -69,6 +71,14 @@ export class BoothBackend {
   }
   get organizationId(): string {
     return this.cfg?.orgId ?? "";
+  }
+  /**
+   * Secret (en-process) pour chiffrer le cache d'accès AU REPOS (CIN-073 S4). On réutilise
+   * le mot de passe device : provisionné, jamais stocké dans localStorage à côté du chiffré.
+   * ⚠️ Sur la Kiosk packagée, la clé doit venir du trousseau OS, pas du bundle.
+   */
+  get cacheSecret(): string {
+    return this.cfg?.devicePassword ?? "";
   }
 
   /** Authentifie le device. `false` si non configuré ou échec (→ mode mock). */
@@ -153,6 +163,61 @@ export class BoothBackend {
       return new Set(); // en cas d'erreur, ne pas bloquer le parcours (fail-open côté produit)
     }
     return new Set(((data ?? []) as Array<{ media_id: string }>).map((r) => String(r.media_id)));
+  }
+
+  /**
+   * Sync des accès opérateur (CIN-073, F17) : tire la table d'accès de SON org depuis
+   * Supabase pour la mettre en cache local, afin que le menu opérateur s'authentifie
+   * HORS LIGNE ensuite. La RLS scope déjà les lignes (org du device + portée booth) —
+   * on ne relit jamais que des EMPREINTES de PIN, jamais de secret en clair. On garde
+   * aussi les entrées révoquées/expirées : la vérif offline doit pouvoir les refuser.
+   * Renvoie la table à sauvegarder, ou null si non branché / erreur.
+   */
+  async syncOperatorAccess(): Promise<AccessTable | null> {
+    if (!supabase || !this.cfg) return null;
+    const { data, error } = await supabase
+      .from("operator_access")
+      .select("identifier,pin_hash,salt,iterations,role,expires_at,revoked");
+    if (error) {
+      console.error("[booth] sync accès opérateur :", error.message);
+      return null;
+    }
+    const entries: AccessEntry[] = (data ?? []).map((r) => {
+      const row = r as Record<string, unknown>;
+      return {
+        identifier: String(row.identifier),
+        pinHash: String(row.pin_hash),
+        salt: String(row.salt),
+        iterations: Number(row.iterations),
+        role: String(row.role) as OperatorRole,
+        expiresAt: (row.expires_at as string | null) ?? null,
+        revoked: Boolean(row.revoked),
+      };
+    });
+    return { orgId: this.cfg.orgId, boothId: this.cfg.boothId, updatedAt: new Date().toISOString(), entries };
+  }
+
+  /**
+   * Pousse le journal d'accès bufferisé (login, Wi-Fi, redémarrage…) vers Supabase.
+   * Append-only côté serveur (policy device = INSERT seul). Renvoie true si le push a
+   * réussi — l'appelant ne draine le buffer local QU'À CE MOMENT (pas de perte si offline).
+   */
+  async pushAccessLog(entries: readonly AccessLogEntry[]): Promise<boolean> {
+    if (!supabase || !this.cfg || entries.length === 0) return false;
+    const rows = entries.map((e) => ({
+      organization_id: this.cfg!.orgId,
+      booth_id: this.cfg!.boothId,
+      at: e.at,
+      identifier: e.identifier,
+      action: e.action,
+      detail: e.detail ?? null,
+    }));
+    const { error } = await supabase.from("operator_access_log").insert(rows);
+    if (error) {
+      console.error("[booth] push journal d'accès :", error.message);
+      return false;
+    }
+    return true;
   }
 
   /** Remonte une séance close + ses lectures. Fire-and-forget (n'interrompt pas le parcours). */

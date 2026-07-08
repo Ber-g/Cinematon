@@ -8,9 +8,11 @@ import type { Play, Session } from "./domain/types";
 import { App } from "./ui/app";
 import { WifiManager } from "./setup/wifi";
 import {
+  EncryptedAccessStore,
   LocalStorageAccessJournal,
   LocalStorageAccessStore,
   seedDemoAccessTable,
+  type AccessStore,
 } from "./setup/accessCache";
 import { OperatorMenu, type OperatorSettingsHooks } from "./setup/operatorMenu";
 
@@ -78,9 +80,27 @@ async function main(): Promise<void> {
   // Wi-Fi/réglages/redémarrage = hooks (stubs en dev ; services locaux réels différés
   // CIN-071/072). La table d'accès viendra du back-office ; en DEV seulement on la
   // seed avec des comptes de démo (jamais en build de production).
-  const accessStore = new LocalStorageAccessStore();
+  // Cache d'accès CHIFFRÉ au repos si la Kiosk est provisionnée (secret device dispo, S4) ;
+  // sinon (dev sans config) repli localStorage clair pour la table de démo.
+  const accessStore: AccessStore = backend.isConfigured
+    ? await EncryptedAccessStore.create(backend.cacheSecret, boothId)
+    : new LocalStorageAccessStore();
   const accessJournal = new LocalStorageAccessJournal();
-  if (import.meta.env.DEV && !accessStore.load()) {
+  if (online) {
+    // En ligne : rafraîchir le cache d'accès depuis le back-office (sync eventually
+    // consistent : révocations/expirations effectives à ce moment) puis pousser le
+    // journal bufferisé hors ligne. On ne draine QU'APRÈS un push réussi → zéro perte.
+    const table = await backend.syncOperatorAccess();
+    if (table) {
+      accessStore.save(table);
+      console.info(`[booth] table d'accès synchronisée · ${table.entries.length} accès`);
+    }
+    const pending = accessJournal.peek();
+    if (pending.length > 0 && (await backend.pushAccessLog(pending))) {
+      accessJournal.drain();
+    }
+  } else if (import.meta.env.DEV && !accessStore.load()) {
+    // Repli DEV hors ligne uniquement : table de démo pour exercer le menu sans back-office.
     accessStore.save(await seedDemoAccessTable(organizationId, boothId));
     console.info("[booth] table d'accès de DÉMO chargée (dev) · op PIN 246810 / admin PIN 135790");
   }

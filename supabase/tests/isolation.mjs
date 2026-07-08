@@ -159,6 +159,46 @@ async function runTenantSuite(name, client, ownOrg, otherOrg) {
       assert(!delErr, `cleanup : booth de contrôle supprimé (${delErr?.message ?? "ok"})`);
     }
   }
+
+  // 8. Accès opérateur (CIN-073) : les EMPREINTES de PIN et le journal d'une org ne
+  //    doivent jamais fuir vers une autre org (lecture, sonde ou écriture).
+  {
+    const { data, error } = await client.from("operator_access").select("id, organization_id");
+    assert(!error, `operator_access lisible sans erreur (${error?.message ?? "ok"})`);
+    const leak = (data ?? []).filter((r) => r.organization_id !== ownOrg);
+    assert(leak.length === 0, `operator_access : aucune fuite d'empreintes cross-org (${leak.length} fuite(s))`);
+  }
+  {
+    const { data } = await client.from("operator_access").select("id").eq("organization_id", otherOrg);
+    assert((data ?? []).length === 0, `sonde operator_access where org=adverse → 0 ligne`);
+  }
+  {
+    const { data } = await client.from("operator_access_log").select("id, organization_id");
+    const leak = (data ?? []).filter((r) => r.organization_id !== ownOrg);
+    assert(leak.length === 0, `operator_access_log : aucune fuite de journal cross-org (${leak.length} fuite(s))`);
+  }
+  {
+    const { data, error } = await client
+      .from("operator_access")
+      .insert({ organization_id: otherOrg, identifier: "ISO-INTRUS-OP", pin_hash: "00", salt: "00", iterations: 210000, role: "operator" })
+      .select();
+    const inserted = (data ?? []).length;
+    assert(error != null || inserted === 0, `INSERT operator_access dans l'org adverse → refusé (${error ? "erreur RLS" : inserted + " inséré(s)"})`);
+    if (inserted > 0) await client.from("operator_access").delete().eq("identifier", "ISO-INTRUS-OP");
+  }
+  {
+    // Contrôle positif : un admin d'org PEUT créer un accès dans SA propre org.
+    const { data, error } = await client
+      .from("operator_access")
+      .insert({ organization_id: ownOrg, identifier: "ISO-SELF-OP", pin_hash: "00", salt: "00", iterations: 210000, role: "operator" })
+      .select("id");
+    const okId = data?.[0]?.id;
+    assert(!error && okId != null, `contrôle positif : créer un accès dans sa propre org autorisé (${error?.message ?? "ok"})`);
+    if (okId) {
+      const { error: delErr } = await client.from("operator_access").delete().eq("id", okId);
+      assert(!delErr, `cleanup : accès de contrôle supprimé (${delErr?.message ?? "ok"})`);
+    }
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────

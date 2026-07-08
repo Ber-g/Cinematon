@@ -1,6 +1,7 @@
 import { Modal } from "bootstrap";
-import type { FleetStore, OrgMember, OrgSummary } from "../data/store";
+import type { FleetStore, OperatorAccessRecord, OrgMember, OrgSummary } from "../data/store";
 import type { OrgRole } from "../domain/types";
+import type { OperatorRole } from "@kioskoscope/domain";
 import { PERMISSION_MATRIX, ROLE_HINTS, ROLE_LABELS, ROLE_ORDER } from "../domain/roles";
 import { el } from "./dom";
 
@@ -8,15 +9,23 @@ import { el } from "./dom";
 // Invitations, Rôles & permissions, Kiosks, Paiement. La gestion (écriture) est
 // réservée au super_user (aligné sur la RLS 0006) ; les autres voient en lecture.
 
-type Tab = "general" | "members" | "invites" | "roles" | "booths" | "billing";
+type Tab = "general" | "members" | "invites" | "roles" | "booths" | "access" | "billing";
 const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
   { key: "general", label: "Général" },
   { key: "members", label: "Membres" },
   { key: "invites", label: "Invitations" },
   { key: "roles", label: "Rôles & permissions" },
   { key: "booths", label: "Kiosks" },
+  { key: "access", label: "Accès opérateur" },
   { key: "billing", label: "Paiement" },
 ];
+
+/** Rôles attribuables à un accès opérateur cabine (global_admin = plateforme, non créé ici). */
+const OPERATOR_ROLE_LABELS: Record<OperatorRole, string> = {
+  operator: "Opérateur",
+  super_user: "Administrateur",
+  global_admin: "Admin global",
+};
 
 export function settingsPage(store: FleetStore, onChanged: () => void): HTMLElement {
   const orgs = store.organizations();
@@ -58,7 +67,7 @@ export function settingsPage(store: FleetStore, onChanged: () => void): HTMLElem
     );
 
     const body = el("div", {}, [tabRenderers[state.tab](store, org, canManage, onChanged)]);
-    if (!canManage && (state.tab === "general" || state.tab === "members" || state.tab === "invites" || state.tab === "billing")) {
+    if (!canManage && (state.tab === "general" || state.tab === "members" || state.tab === "invites" || state.tab === "access" || state.tab === "billing")) {
       body.prepend(el("div", { class: "alert alert-secondary" }, ["Lecture seule — seul un super-utilisateur de l'organisation peut modifier ces réglages."]));
     }
 
@@ -393,11 +402,165 @@ function openIntegrationModal(store: FleetStore, orgId: string, onDone: () => vo
   modal.show();
 }
 
+// ── Onglet Accès opérateur (CIN-073, F17 volet A) ─────────────────────────────
+// Gère les identifiants+PIN d'accès au menu opérateur des Kiosks. Le PIN est haché à
+// la création (domaine) et n'est JAMAIS relu ni affiché ici. Révocation/expiration =
+// effectives à la prochaine sync de la Kiosk (eventually consistent, hors ligne compris).
+const ACTION_LABELS: Record<string, string> = {
+  login_ok: "Connexion",
+  login_fail: "Échec de connexion",
+  wifi_connect: "Wi-Fi",
+  restart: "Redémarrage",
+};
+
+function accessStatus(a: OperatorAccessRecord): { label: string; cls: string } {
+  if (a.revoked) return { label: "Révoqué", cls: "bg-danger-lt" };
+  if (a.expiresAt && Date.parse(a.expiresAt) <= Date.now()) return { label: "Expiré", cls: "bg-orange-lt" };
+  return { label: "Actif", cls: "bg-green-lt" };
+}
+
+function accessTab(store: FleetStore, org: OrgSummary | null, canManage: boolean): HTMLElement {
+  if (!org) return el("span", {}, []);
+  const booths = store.visibleBooths().filter((b) => b.organizationId === org.id);
+  const boothLabel = (id: string | null): string =>
+    id === null ? "Toutes les Kiosks" : (booths.find((b) => b.id === id)?.label ?? "Kiosk inconnue");
+
+  const wrap = el("div", {}, [el("div", { class: "card" }, [el("div", { class: "card-body text-secondary" }, ["Chargement des accès…"])])]);
+
+  const load = (): void => {
+    void Promise.all([store.listOperatorAccess(org.id), store.listOperatorAccessLog(org.id)]).then(([accesses, log]) => {
+      // — Table des accès —
+      const rows = accesses.map((a) => {
+        const st = accessStatus(a);
+        const actions: HTMLElement[] = [];
+        if (canManage) {
+          const toggle = el("button", { class: `btn btn-sm ${a.revoked ? "btn-outline-success" : "btn-outline-danger"}`, type: "button" }, [a.revoked ? "Réactiver" : "Révoquer"]);
+          toggle.addEventListener("click", () => void store.setOperatorAccessRevoked(a.id, !a.revoked).then((r) => (r.ok ? load() : alert(r.error ?? "Échec."))));
+          const del = el("button", { class: "btn btn-sm btn-outline-danger ms-1", type: "button" }, ["Supprimer"]);
+          del.addEventListener("click", () => {
+            if (!confirm(`Supprimer définitivement l'accès « ${a.identifier} » ?`)) return;
+            void store.deleteOperatorAccess(a.id).then((r) => (r.ok ? load() : alert(r.error ?? "Échec.")));
+          });
+          actions.push(toggle, del);
+        }
+        return el("tr", {}, [
+          el("td", {}, [el("div", { class: "fw-bold" }, [a.identifier]), a.label ? el("div", { class: "text-secondary small" }, [a.label]) : el("span", {}, [])]),
+          el("td", {}, [el("span", { class: "badge bg-secondary-lt" }, [OPERATOR_ROLE_LABELS[a.role]])]),
+          el("td", { class: "text-secondary small" }, [boothLabel(a.boothId)]),
+          el("td", { class: "text-secondary small" }, [a.expiresAt ? new Date(a.expiresAt).toLocaleDateString("fr-FR") : "—"]),
+          el("td", {}, [el("span", { class: `badge ${st.cls}` }, [st.label])]),
+          el("td", { class: "text-end" }, actions),
+        ]);
+      });
+
+      const addBtn = el("button", { class: "btn btn-primary mb-3", type: "button", ...(canManage ? {} : { disabled: "true" }) }, ["Créer un accès"]);
+      addBtn.addEventListener("click", () => openAccessModal(store, org.id, booths, load));
+
+      const accessCard = el("div", { class: "card" }, [
+        el("div", { class: "table-responsive" }, [
+          el("table", { class: "table table-vcenter card-table" }, [
+            el("thead", {}, [el("tr", {}, [el("th", {}, ["Identifiant"]), el("th", {}, ["Rôle"]), el("th", {}, ["Portée"]), el("th", {}, ["Expiration"]), el("th", {}, ["Statut"]), el("th", {}, [])])]),
+            el("tbody", {}, rows.length ? rows : [el("tr", {}, [el("td", { colspan: "6", class: "text-secondary text-center py-4" }, ["Aucun accès opérateur. Créez-en un pour ouvrir le menu Wi-Fi/réglages d'une Kiosk."])])]),
+          ]),
+        ]),
+      ]);
+
+      // — Journal d'accès —
+      const logRows = log.map((l) =>
+        el("tr", {}, [
+          el("td", { class: "text-secondary small" }, [new Date(l.at).toLocaleString("fr-FR")]),
+          el("td", {}, [l.identifier ?? el("span", { class: "text-secondary" }, ["—"])]),
+          el("td", {}, [ACTION_LABELS[l.action] ?? l.action]),
+          el("td", { class: "text-secondary small" }, [l.boothId ? boothLabel(l.boothId) : "—"]),
+          el("td", { class: "text-secondary small" }, [l.detail ?? ""]),
+        ]),
+      );
+      const logCard = el("div", { class: "card mt-4" }, [
+        el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["Journal d'accès"]), el("div", { class: "card-subtitle" }, ["Remonté par les Kiosks (100 dernières entrées)."])]),
+        el("div", { class: "table-responsive" }, [
+          el("table", { class: "table table-vcenter card-table" }, [
+            el("thead", {}, [el("tr", {}, [el("th", {}, ["Quand"]), el("th", {}, ["Identifiant"]), el("th", {}, ["Action"]), el("th", {}, ["Kiosk"]), el("th", {}, ["Détail"])])]),
+            el("tbody", {}, logRows.length ? logRows : [el("tr", {}, [el("td", { colspan: "5", class: "text-secondary text-center py-4" }, ["Aucune entrée de journal."])])]),
+          ]),
+        ]),
+      ]);
+
+      wrap.replaceChildren(canManage ? addBtn : el("span", {}, []), accessCard, logCard);
+    });
+  };
+  load();
+  return wrap;
+}
+
+function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray<{ id: string; label: string }>, onDone: () => void): void {
+  const identifier = el("input", { class: "form-control", type: "text", placeholder: "PERCHOIR-CAB001-OP", autocomplete: "off" }) as HTMLInputElement;
+  const pin = el("input", { class: "form-control", type: "text", inputmode: "numeric", placeholder: "4 à 8 chiffres", autocomplete: "off", maxlength: "8" }) as HTMLInputElement;
+  const role = el("select", { class: "form-select" }, (["operator", "super_user"] as const).map((r) => el("option", { value: r }, [OPERATOR_ROLE_LABELS[r]]))) as HTMLSelectElement;
+  const scope = el("select", { class: "form-select" }, [el("option", { value: "" }, ["Toutes les Kiosks de l'organisation"]), ...booths.map((b) => el("option", { value: b.id }, [b.label]))]) as HTMLSelectElement;
+  const label = el("input", { class: "form-control", type: "text", placeholder: "Note (ex. bénévole festival)", autocomplete: "off" }) as HTMLInputElement;
+  const expiry = el("input", { class: "form-control", type: "date" }) as HTMLInputElement;
+  const error = el("div", { class: "alert alert-danger d-none" }, []);
+  const create = el("button", { class: "btn btn-primary ms-auto", type: "button" }, ["Créer l'accès"]);
+
+  create.addEventListener("click", () => {
+    error.classList.add("d-none");
+    const id = identifier.value.trim();
+    if (id === "") return fail("Renseignez un identifiant.");
+    if (!/^\d{4,8}$/.test(pin.value)) return fail("Le PIN doit contenir de 4 à 8 chiffres.");
+    create.setAttribute("disabled", "true");
+    void store
+      .createOperatorAccess(orgId, {
+        identifier: id,
+        pin: pin.value,
+        role: role.value as OperatorRole,
+        boothId: scope.value || null,
+        expiresAt: expiry.value ? new Date(`${expiry.value}T23:59:59`).toISOString() : null,
+        label: label.value.trim(),
+      })
+      .then((res) => {
+        create.removeAttribute("disabled");
+        if (!res.ok) return fail(res.error ?? "Échec de la création.");
+        onDone();
+        modal.hide();
+      });
+  });
+
+  function fail(msg: string): void {
+    error.textContent = msg;
+    error.classList.remove("d-none");
+  }
+  const field = (l: string, hint: string, input: HTMLElement): HTMLElement =>
+    el("div", { class: "mb-3" }, [el("label", { class: "form-label" }, [l]), input, hint ? el("div", { class: "form-hint" }, [hint]) : el("span", {}, [])]);
+
+  const modalEl = el("div", { class: "modal modal-blur fade", tabindex: "-1" }, [
+    el("div", { class: "modal-dialog modal-dialog-centered" }, [
+      el("div", { class: "modal-content" }, [
+        el("div", { class: "modal-header" }, [el("h3", { class: "modal-title" }, ["Nouvel accès opérateur"]), el("button", { class: "btn-close", type: "button", "data-bs-dismiss": "modal" }, [])]),
+        el("div", { class: "modal-body" }, [
+          error,
+          field("Identifiant", "Non secret, structuré. Convention : ORG-CABxxx-RÔLE.", identifier),
+          field("PIN", "Le PIN n'est jamais réaffiché : communiquez-le à l'opérateur, il ne sera pas récupérable ici.", pin),
+          field("Rôle", "", role),
+          field("Portée", "Restreindre à une Kiosk, ou valable sur toute l'organisation.", scope),
+          field("Expiration (optionnelle)", "Au-delà, l'accès est refusé (utile pour un événement).", expiry),
+          field("Note (optionnelle)", "", label),
+        ]),
+        el("div", { class: "modal-footer" }, [el("button", { class: "btn", type: "button", "data-bs-dismiss": "modal" }, ["Annuler"]), create]),
+      ]),
+    ]),
+  ]);
+  document.body.append(modalEl);
+  const modal = new Modal(modalEl);
+  modalEl.addEventListener("hidden.bs.modal", () => modalEl.remove(), { once: true });
+  modal.show();
+}
+
 const tabRenderers: Record<Tab, (store: FleetStore, org: OrgSummary | null, canManage: boolean, onChanged: () => void) => HTMLElement> = {
   general: generalTab,
   members: membersTab,
   invites: invitesTab,
   roles: () => rolesTab(),
   booths: (store, org) => boothsTab(store, org),
+  access: (store, org, canManage) => accessTab(store, org, canManage),
   billing: billingTab,
 };
