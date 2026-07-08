@@ -38,6 +38,18 @@ function randomPin(len = 6): string {
   return Array.from(bytes, (b) => String(b % 10)).join("");
 }
 
+/** Slug identifiant (CIN-076) : sans accents, alphanumérique majuscule, borné. */
+function slugify(s: string, max = 12): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, max);
+}
+
+/** Code de rôle par défaut pour le suffixe auto (CIN-076). */
+const ROLE_SUFFIX: Record<OperatorRole, string> = {
+  operator: "OP",
+  super_user: "ADMIN",
+  global_admin: "GADMIN",
+};
+
 export function settingsPage(store: FleetStore, onChanged: () => void): HTMLElement {
   const orgs = store.organizations();
   const state = {
@@ -465,7 +477,7 @@ function accessTab(store: FleetStore, org: OrgSummary | null, canManage: boolean
       });
 
       const addBtn = el("button", { class: "btn btn-primary mb-3", type: "button", ...(canManage ? {} : { disabled: "true" }) }, ["Créer un accès"]);
-      addBtn.addEventListener("click", () => openAccessModal(store, org.id, booths, load));
+      addBtn.addEventListener("click", () => openAccessModal(store, org, booths, accesses.map((a) => a.identifier), load));
 
       const accessCard = el("div", { class: "card" }, [
         el("div", { class: "table-responsive" }, [
@@ -503,9 +515,21 @@ function accessTab(store: FleetStore, org: OrgSummary | null, canManage: boolean
   return wrap;
 }
 
-function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray<{ id: string; label: string }>, onDone: () => void): void {
+function openAccessModal(
+  store: FleetStore,
+  org: OrgSummary,
+  booths: ReadonlyArray<{ id: string; label: string }>,
+  existingIds: readonly string[],
+  onDone: () => void,
+): void {
+  const orgSlug = slugify(org.name);
   let generatedPin = randomPin();
-  const identifier = el("input", { class: "form-control", type: "text", placeholder: "PERCHOIR-CAB001-OP", autocomplete: "off" }) as HTMLInputElement;
+
+  // Identifiant (CIN-076) : préfixe figé (org / kiosk selon la portée), suffixe éditable OPTIONNEL.
+  const prefixAddon = el("span", { class: "input-group-text" }, [""]);
+  const suffix = el("input", { class: "form-control", type: "text", autocomplete: "off", placeholder: "" }) as HTMLInputElement;
+  const preview = el("div", { class: "form-hint" }, [""]);
+
   const pinDisplay = el("input", { class: "form-control form-control-lg text-center fw-bold", type: "text", readonly: "true", value: generatedPin, style: "letter-spacing:.3em;font-variant-numeric:tabular-nums" }) as HTMLInputElement;
   const regen = el("button", { class: "btn", type: "button" }, ["Régénérer"]);
   regen.addEventListener("click", () => {
@@ -520,15 +544,48 @@ function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray
   const successBox = el("div", { class: "d-none" }, []);
   const create = el("button", { class: "btn btn-primary ms-auto", type: "button" }, ["Créer l'accès"]);
 
+  const boothSlug = (id: string): string => {
+    const b = booths.find((x) => x.id === id);
+    return b ? slugify(b.label, 10) : "";
+  };
+  const currentPrefix = (): string => {
+    const bs = scope.value ? boothSlug(scope.value) : "";
+    return bs ? `${orgSlug}-${bs}-` : `${orgSlug}-`;
+  };
+  // Suffixe auto (portée + rôle) : garantit l'unicité `unique(org, identifier)` en incrémentant.
+  const autoSuffix = (prefix: string): string => {
+    const base = ROLE_SUFFIX[role.value as OperatorRole];
+    let cand = base;
+    let n = 1;
+    while (existingIds.includes(prefix + cand)) {
+      n += 1;
+      cand = `${base}${n}`;
+    }
+    return cand;
+  };
+  const finalId = (): string => {
+    const prefix = currentPrefix();
+    const s = slugify(suffix.value, 16);
+    return prefix + (s || autoSuffix(prefix));
+  };
+  const refresh = (): void => {
+    const prefix = currentPrefix();
+    prefixAddon.textContent = prefix;
+    suffix.placeholder = autoSuffix(prefix);
+    preview.textContent = `Identifiant complet : ${finalId()}`;
+  };
+  scope.addEventListener("change", refresh);
+  role.addEventListener("change", refresh);
+  suffix.addEventListener("input", refresh);
+
   create.addEventListener("click", () => {
     error.classList.add("d-none");
-    const id = identifier.value.trim();
-    if (id === "") return fail("Renseignez un identifiant.");
+    const id = finalId();
     create.setAttribute("disabled", "true");
     // On capture le PIN affiché AU MOMENT de la création (l'utilisateur a pu régénérer).
     const pinAtCreate = generatedPin;
     void store
-      .createOperatorAccess(orgId, {
+      .createOperatorAccess(org.id, {
         identifier: id,
         pin: pinAtCreate,
         role: role.value as OperatorRole,
@@ -538,7 +595,10 @@ function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray
       })
       .then((res) => {
         create.removeAttribute("disabled");
-        if (!res.ok) return fail(res.error ?? "Échec de la création.");
+        if (!res.ok) {
+          const dup = /duplicate|unique/i.test(res.error ?? "");
+          return fail(dup ? "Cet identifiant existe déjà — personnalisez le suffixe." : (res.error ?? "Échec de la création."));
+        }
         // PIN affiché une SEULE fois : non stocké en clair, non récupérable ensuite.
         successBox.replaceChildren(
           el("div", { class: "alert alert-success" }, [
@@ -562,7 +622,12 @@ function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray
     el("div", { class: "mb-3" }, [el("label", { class: "form-label" }, [l]), input, hint ? el("div", { class: "form-hint" }, [hint]) : el("span", {}, [])]);
 
   const form = el("div", {}, [
-    field("Identifiant", "Non secret, structuré. Convention : ORG-CABxxx-RÔLE.", identifier),
+    el("div", { class: "mb-3" }, [
+      el("label", { class: "form-label" }, ["Identifiant"]),
+      el("div", { class: "input-group" }, [prefixAddon, suffix]),
+      preview,
+      el("div", { class: "form-hint" }, ["Préfixe fixe (organisation / kiosk selon la portée). Le suffixe est optionnel : laissé vide, il est renseigné automatiquement d'après le rôle."]),
+    ]),
     el("div", { class: "mb-3" }, [
       el("label", { class: "form-label" }, ["PIN (généré automatiquement)"]),
       el("div", { class: "input-group" }, [pinDisplay, regen]),
@@ -586,6 +651,7 @@ function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray
   document.body.append(modalEl);
   const modal = new Modal(modalEl);
   modalEl.addEventListener("hidden.bs.modal", () => modalEl.remove(), { once: true });
+  refresh();
   modal.show();
 }
 
