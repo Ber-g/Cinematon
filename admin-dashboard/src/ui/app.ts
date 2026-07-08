@@ -31,7 +31,9 @@ export class App {
   private editing = false;
   private filter: FilterState | null = null;
   private sort: SortState = { key: "health", dir: "asc" };
-  private view: "overview" | "map" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" = "overview";
+  private view: "overview" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" = "overview";
+  // CIN-044 : la carte n'est plus un menu — c'est une bascule DANS la vue d'ensemble.
+  private overviewMode: "list" | "map" = "list";
   private themePref: "system" | "light" | "dark" = ((): "system" | "light" | "dark" => {
     const v = localStorage.getItem(THEME_KEY);
     return v === "light" || v === "dark" || v === "system" ? v : "system";
@@ -69,9 +71,7 @@ export class App {
     }
     this.maybeAcceptInvite();
     const page =
-      this.view === "map"
-        ? mapPage(this.store)
-        : this.view === "media"
+      this.view === "media"
         ? mediaPage(this.store, () => this.render())
         : this.view === "revenue"
           ? revenuePage(this.store)
@@ -93,11 +93,13 @@ export class App {
         ]),
       ]),
     );
-    if (this.view === "overview") this.mountGrid();
-    if (this.view === "map") mountFleetMap(this.store);
+    if (this.view === "overview") {
+      this.mountGrid();
+      if (this.overviewMode === "map") mountFleetMap(this.store);
+    }
   }
 
-  private setView(v: "overview" | "map" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings"): void {
+  private setView(v: "overview" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings"): void {
     this.view = v;
     this.render();
   }
@@ -145,7 +147,6 @@ export class App {
         el("div", { class: "collapse navbar-collapse", id: "sidebar-menu" }, [
           el("ul", { class: "navbar-nav pt-lg-2 w-100" }, [
             navItem(t("nav.overview"), "M4 21v-13l8 -4l8 4v13M9 21v-6h6v6", this.view === "overview", () => this.setView("overview")),
-            navItem(t("nav.map"), "M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z", this.view === "map", () => this.setView("map")),
             navItem(t("nav.media"), "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", this.view === "media", () => this.setView("media")),
             navItem(t("nav.revenue"), "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6", this.view === "revenue", () => this.setView("revenue")),
             this.store.activeHasModule("rights")
@@ -243,21 +244,42 @@ export class App {
 
     const cards = booths.map((b) => el("div", { class: "col-12 col-md-6" }, [boothCard(b, (id) => this.openDrawer(id))]));
 
+    // CIN-044 : bascule Liste / Carte (la carte n'a plus de menu dédié).
+    const segBtn = (label: string, mode: "list" | "map"): HTMLElement => {
+      const b = el("button", { class: `btn ${this.overviewMode === mode ? "btn-primary" : ""}`, type: "button" }, [label]);
+      b.addEventListener("click", () => {
+        this.overviewMode = mode;
+        this.render();
+      });
+      return b;
+    };
+    const modeToggle = el("div", { class: "btn-group ms-auto", role: "group" }, [segBtn(t("nav.overview"), "list"), segBtn(t("nav.map"), "map")]);
+
+    const body =
+      this.overviewMode === "map"
+        ? [mapPage(this.store)]
+        : [
+            el("div", { class: "row row-cards mt-1" }, [
+              el("div", { class: "col-12 col-xl-4" }, [statusDistribution(all)]),
+              el("div", { class: "col-12 col-xl-8" }, [el("div", { class: "row row-cards" }, cards)]),
+            ]),
+            el("div", { class: "mt-3" }, [boothTable(booths, this.sort, (k) => this.applySort(k), (id) => this.openDrawer(id))]),
+          ];
+
     return el("div", {}, [
-      el("div", { class: "mb-3" }, [
-        el("h2", { class: "page-title m-0" }, [t("overview.title")]),
-        el("div", { class: "text-secondary" }, [
-          this.store.isGlobalAdmin ? t("overview.subtitleAdmin") : t("overview.subtitle"),
-          this.editing ? " · Glissez les tuiles pour réorganiser." : "",
+      el("div", { class: "d-flex align-items-center mb-3 gap-2 flex-wrap" }, [
+        el("div", {}, [
+          el("h2", { class: "page-title m-0" }, [t("overview.title")]),
+          el("div", { class: "text-secondary" }, [
+            this.store.isGlobalAdmin ? t("overview.subtitleAdmin") : t("overview.subtitle"),
+            this.editing ? " · Glissez les tuiles pour réorganiser." : "",
+          ]),
         ]),
+        modeToggle,
       ]),
       el("div", { class: "grid-stack" }, gridItems),
       this.filterBanner(),
-      el("div", { class: "row row-cards mt-1" }, [
-        el("div", { class: "col-12 col-xl-4" }, [statusDistribution(all)]),
-        el("div", { class: "col-12 col-xl-8" }, [el("div", { class: "row row-cards" }, cards)]),
-      ]),
-      el("div", { class: "mt-3" }, [boothTable(booths, this.sort, (k) => this.applySort(k), (id) => this.openDrawer(id))]),
+      ...body,
     ]);
   }
 
