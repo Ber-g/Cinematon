@@ -173,7 +173,7 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       health: "operational",
       indicators: [],
       lastHeartbeatAt: Date.now(),
-      softwareVersion: "0.2.0",
+      softwareVersion: "", // inconnue jusqu'au 1er heartbeat de la borne (CIN-016)
       sessionsToday: 0,
       revenueTodayCents: 0,
       telemetry: { uptimePct: 100, temperatureC: 38, storageFreePct: 80, cpuLoadPct: 20, currentFilmTitle: null, connection: "wifi", signalPct: 70 },
@@ -216,7 +216,8 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       el("option", { value: s, ...(s === b.health ? { selected: "selected" } : {}) }, [healthMeta(s).label]),
     ),
   ) as HTMLSelectElement;
-  const versionInput = el("input", { class: "form-control", type: "text", value: b.softwareVersion });
+  // CIN-016 : la version = réalité remontée par la borne (heartbeat), jamais saisie à la main.
+  const versionInput = el("input", { class: "form-control", type: "text", value: b.softwareVersion, readonly: "true", placeholder: "en attente du premier contact" });
   const notesInput = el("textarea", { class: "form-control", rows: "2" }, [b.notes]) as HTMLTextAreaElement;
 
   const form = el("form", {}, [
@@ -229,7 +230,10 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       el("div", { class: "d-flex align-items-center justify-content-between mt-1" }, [coordReadout, clearPin]),
     ])),
     field("Statut de santé", healthSelect),
-    field("Version logicielle", versionInput),
+    field("Version logicielle (remontée par la borne — lecture seule)", el("div", {}, [
+      versionInput,
+      el("div", { class: "form-hint" }, ["Renseignée automatiquement par la Kiosk à chaque contact ; non modifiable ici."]),
+    ])),
     field("Notes d'accès (où exactement, comment brancher, contact sur place…)", notesInput),
   ]);
 
@@ -308,7 +312,7 @@ export function openBoothForm(store: FleetStore, existing: Booth | null): void {
       location: locationInput.value.trim(),
       address: addressInput.value.trim(),
       health: healthSelect.value as HealthStatus,
-      softwareVersion: versionInput.value.trim() || b.softwareVersion,
+      softwareVersion: b.softwareVersion, // réalité borne (heartbeat), jamais éditée ici (CIN-016)
       notes: notesInput.value.trim(),
       gpsLat: pickedLat,
       gpsLng: pickedLng,

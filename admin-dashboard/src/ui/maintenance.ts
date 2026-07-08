@@ -39,8 +39,12 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
       el("td", { class: "text-end" }, [deploy]),
     ]);
   });
-  const newRel = el("button", { class: "btn btn-primary", type: "button" }, ["Nouvelle version"]);
-  newRel.addEventListener("click", () => openReleaseModal(store, orgId, reload));
+  // CIN-016 : fabriquer une version est réservé à la plateforme (global_admin) ; un client
+  // DÉPLOIE une version existante mais ne la crée pas (aligné sur la RLS releases, 0016).
+  const newRel = store.isGlobalAdmin
+    ? el("button", { class: "btn btn-primary", type: "button" }, ["Nouvelle version"])
+    : el("span", { class: "text-secondary small" }, ["Les versions sont publiées par Kioskoscope."]);
+  if (store.isGlobalAdmin) newRel.addEventListener("click", () => openReleaseModal(store, orgId, reload));
 
   // ── État par Kiosk ──
   const boothRows = rep.rows.map((row) => {

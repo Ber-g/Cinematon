@@ -55,6 +55,14 @@ async function main(): Promise<void> {
     console.info("[booth] mode hors ligne (catalogue factice, sessions en mémoire)");
   }
 
+  // CIN-014 : heartbeat RÉGULIER (pas seulement au boot) → la flotte repère vite une borne
+  // muette (F3). Le device est authentifié (JWT) ; anti-rejeu serveur = différé (faible
+  // risque, et une garde monotone risquerait de faux « silencieux » sur dérive d'horloge).
+  if (online) {
+    const HEARTBEAT_MS = 60_000;
+    window.setInterval(() => void backend.reportHeartbeat(BOOTH_VERSION), HEARTBEAT_MS);
+  }
+
   // Base de l'URL de partage (QR de fin → /s/{token}). La page récap est servie par
   // Cloudflare Pages (le domaine functions.supabase.co neutralise le HTML). Définir
   // VITE_SHARE_BASE_URL sur l'URL Pages (…pages.dev) ; défaut = futur domaine public.
