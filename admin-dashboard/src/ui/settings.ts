@@ -27,6 +27,17 @@ const OPERATOR_ROLE_LABELS: Record<OperatorRole, string> = {
   global_admin: "Admin global",
 };
 
+/**
+ * PIN aléatoire (défaut 6 chiffres) via WebCrypto. Généré côté back-office et affiché une
+ * seule fois : ni l'admin ni personne ne « choisit » un PIN faible, et il n'est jamais
+ * réaffiché ensuite (seule l'empreinte est stockée). Biais modulo négligeable pour cet usage.
+ */
+function randomPin(len = 6): string {
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => String(b % 10)).join("");
+}
+
 export function settingsPage(store: FleetStore, onChanged: () => void): HTMLElement {
   const orgs = store.organizations();
   const state = {
@@ -493,25 +504,33 @@ function accessTab(store: FleetStore, org: OrgSummary | null, canManage: boolean
 }
 
 function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray<{ id: string; label: string }>, onDone: () => void): void {
+  let generatedPin = randomPin();
   const identifier = el("input", { class: "form-control", type: "text", placeholder: "PERCHOIR-CAB001-OP", autocomplete: "off" }) as HTMLInputElement;
-  const pin = el("input", { class: "form-control", type: "text", inputmode: "numeric", placeholder: "4 à 8 chiffres", autocomplete: "off", maxlength: "8" }) as HTMLInputElement;
+  const pinDisplay = el("input", { class: "form-control form-control-lg text-center fw-bold", type: "text", readonly: "true", value: generatedPin, style: "letter-spacing:.3em;font-variant-numeric:tabular-nums" }) as HTMLInputElement;
+  const regen = el("button", { class: "btn", type: "button" }, ["Régénérer"]);
+  regen.addEventListener("click", () => {
+    generatedPin = randomPin();
+    pinDisplay.value = generatedPin;
+  });
   const role = el("select", { class: "form-select" }, (["operator", "super_user"] as const).map((r) => el("option", { value: r }, [OPERATOR_ROLE_LABELS[r]]))) as HTMLSelectElement;
   const scope = el("select", { class: "form-select" }, [el("option", { value: "" }, ["Toutes les Kiosks de l'organisation"]), ...booths.map((b) => el("option", { value: b.id }, [b.label]))]) as HTMLSelectElement;
   const label = el("input", { class: "form-control", type: "text", placeholder: "Note (ex. bénévole festival)", autocomplete: "off" }) as HTMLInputElement;
   const expiry = el("input", { class: "form-control", type: "date" }) as HTMLInputElement;
   const error = el("div", { class: "alert alert-danger d-none" }, []);
+  const successBox = el("div", { class: "d-none" }, []);
   const create = el("button", { class: "btn btn-primary ms-auto", type: "button" }, ["Créer l'accès"]);
 
   create.addEventListener("click", () => {
     error.classList.add("d-none");
     const id = identifier.value.trim();
     if (id === "") return fail("Renseignez un identifiant.");
-    if (!/^\d{4,8}$/.test(pin.value)) return fail("Le PIN doit contenir de 4 à 8 chiffres.");
     create.setAttribute("disabled", "true");
+    // On capture le PIN affiché AU MOMENT de la création (l'utilisateur a pu régénérer).
+    const pinAtCreate = generatedPin;
     void store
       .createOperatorAccess(orgId, {
         identifier: id,
-        pin: pin.value,
+        pin: pinAtCreate,
         role: role.value as OperatorRole,
         boothId: scope.value || null,
         expiresAt: expiry.value ? new Date(`${expiry.value}T23:59:59`).toISOString() : null,
@@ -520,8 +539,18 @@ function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray
       .then((res) => {
         create.removeAttribute("disabled");
         if (!res.ok) return fail(res.error ?? "Échec de la création.");
+        // PIN affiché une SEULE fois : non stocké en clair, non récupérable ensuite.
+        successBox.replaceChildren(
+          el("div", { class: "alert alert-success" }, [
+            el("div", { class: "fw-bold mb-1" }, [`Accès « ${id} » créé.`]),
+            el("div", {}, ["Communiquez ce PIN à l'opérateur maintenant — il ne sera pas récupérable :"]),
+            el("div", { class: "h1 text-center my-2", style: "letter-spacing:.3em;font-variant-numeric:tabular-nums" }, [pinAtCreate]),
+          ]),
+        );
+        successBox.classList.remove("d-none");
+        form.classList.add("d-none");
+        create.classList.add("d-none");
         onDone();
-        modal.hide();
       });
   });
 
@@ -532,20 +561,25 @@ function openAccessModal(store: FleetStore, orgId: string, booths: ReadonlyArray
   const field = (l: string, hint: string, input: HTMLElement): HTMLElement =>
     el("div", { class: "mb-3" }, [el("label", { class: "form-label" }, [l]), input, hint ? el("div", { class: "form-hint" }, [hint]) : el("span", {}, [])]);
 
+  const form = el("div", {}, [
+    field("Identifiant", "Non secret, structuré. Convention : ORG-CABxxx-RÔLE.", identifier),
+    el("div", { class: "mb-3" }, [
+      el("label", { class: "form-label" }, ["PIN (généré automatiquement)"]),
+      el("div", { class: "input-group" }, [pinDisplay, regen]),
+      el("div", { class: "form-hint" }, ["Généré aléatoirement, affiché une seule fois à la création. Non modifiable, non récupérable ensuite."]),
+    ]),
+    field("Rôle", "", role),
+    field("Portée", "Restreindre à une Kiosk, ou valable sur toute l'organisation.", scope),
+    field("Expiration (optionnelle)", "Au-delà, l'accès est refusé (utile pour un événement).", expiry),
+    field("Note (optionnelle)", "", label),
+  ]);
+
   const modalEl = el("div", { class: "modal modal-blur fade", tabindex: "-1" }, [
     el("div", { class: "modal-dialog modal-dialog-centered" }, [
       el("div", { class: "modal-content" }, [
         el("div", { class: "modal-header" }, [el("h3", { class: "modal-title" }, ["Nouvel accès opérateur"]), el("button", { class: "btn-close", type: "button", "data-bs-dismiss": "modal" }, [])]),
-        el("div", { class: "modal-body" }, [
-          error,
-          field("Identifiant", "Non secret, structuré. Convention : ORG-CABxxx-RÔLE.", identifier),
-          field("PIN", "Le PIN n'est jamais réaffiché : communiquez-le à l'opérateur, il ne sera pas récupérable ici.", pin),
-          field("Rôle", "", role),
-          field("Portée", "Restreindre à une Kiosk, ou valable sur toute l'organisation.", scope),
-          field("Expiration (optionnelle)", "Au-delà, l'accès est refusé (utile pour un événement).", expiry),
-          field("Note (optionnelle)", "", label),
-        ]),
-        el("div", { class: "modal-footer" }, [el("button", { class: "btn", type: "button", "data-bs-dismiss": "modal" }, ["Annuler"]), create]),
+        el("div", { class: "modal-body" }, [error, successBox, form]),
+        el("div", { class: "modal-footer" }, [el("button", { class: "btn", type: "button", "data-bs-dismiss": "modal" }, ["Fermer"]), create]),
       ]),
     ]),
   ]);
