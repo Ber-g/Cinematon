@@ -199,6 +199,19 @@ async function runTenantSuite(name, client, ownOrg, otherOrg) {
       assert(!delErr, `cleanup : accès de contrôle supprimé (${delErr?.message ?? "ok"})`);
     }
   }
+
+  // 9. Autorité des releases (CIN-016) : fabriquer une VERSION est réservé à global_admin.
+  //    Un super_user d'org (nos comptes de test) ne doit PAS pouvoir INSÉRER une release
+  //    (il DÉPLOIE une version existante via booth_updates, mais ne la crée pas).
+  {
+    const { data, error } = await client
+      .from("releases")
+      .insert({ organization_id: ownOrg, version: "ISO-TEST-9.9.9" })
+      .select();
+    const inserted = (data ?? []).length;
+    assert(error != null || inserted === 0, `INSERT release par un super_user → refusé (${error ? "erreur RLS" : inserted + " inséré(s)"})`);
+    if (inserted > 0) await client.from("releases").delete().eq("version", "ISO-TEST-9.9.9");
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
