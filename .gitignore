@@ -4,7 +4,9 @@
 # Documents internes de conception (non publics) — gardés en local uniquement.
 # Contiennent la stratégie produit/technique/QA et ne doivent pas être publiés.
 /ARCHITECTURE.md
+/ARCHITECTURE-CHANGELOG.md
 /SPEC.md
+/SPEC-DECISIONS.md
 /OPS.md
 /QA.md
 # Ticketing léger interne (en attendant GitHub Issues).
