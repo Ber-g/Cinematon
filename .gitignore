@@ -1,6 +1,16 @@
 # macOS
 .DS_Store
 
+# Worktrees Claude Code (dépôts imbriqués — ne jamais suivre)
+.claude/
+
+# Secrets PKI de la flotte (mTLS, CIN-078) — JAMAIS committer une clé privée.
+kiosk/pki/ca/
+kiosk/pki/certs/
+*.key
+*.p12
+*.pem
+
 # Documents internes de conception (non publics) — gardés en local uniquement.
 # Contiennent la stratégie produit/technique/QA et ne doivent pas être publiés.
 /ARCHITECTURE.md
