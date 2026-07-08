@@ -19,6 +19,9 @@ const PORT = Number(process.env.KIOSK_WEB_PORT ?? 8080);
 const WEB_ROOT = process.env.KIOSK_WEB_ROOT ?? "/opt/kioskoscope/booth-client/dist";
 const AGENT_URL = process.env.KIOSK_AGENT_URL ?? "http://127.0.0.1:4599";
 const TOKEN_FILE = process.env.KIOSK_AGENT_TOKEN_FILE ?? "/etc/kioskoscope/agent.token";
+// Creds Supabase du device (boothId/orgId/deviceEmail/devicePassword), provisionnés en local.
+// Fournis au runtime au booth-client → JAMAIS dans le bundle (un build public reste inerte).
+const DEVICE_FILE = process.env.KIOSK_DEVICE_FILE ?? "/etc/kioskoscope/device.json";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -48,6 +51,17 @@ function agentToken() {
   }
 }
 
+/** Creds device (fichier local 0600), relus à chaque requête. null si non provisionné. */
+function deviceConfig() {
+  try {
+    const d = JSON.parse(readFileSync(DEVICE_FILE, "utf8"));
+    const ok = ["boothId", "orgId", "deviceEmail", "devicePassword"].every((k) => typeof d?.[k] === "string" && d[k] !== "");
+    return ok ? { boothId: d.boothId, orgId: d.orgId, deviceEmail: d.deviceEmail, devicePassword: d.devicePassword } : null;
+  } catch {
+    return null;
+  }
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${HOST}`);
   let path = decodeURIComponent(url.pathname);
@@ -55,8 +69,15 @@ const server = createServer(async (req, res) => {
   // Config borne : jeton au runtime, hors bundle, non caché, même origine seulement.
   if (path === "/kiosk-config.json") {
     const token = agentToken();
+    const device = deviceConfig();
     res.writeHead(token ? 200 : 503, { "content-type": "application/json", "cache-control": "no-store" });
-    res.end(JSON.stringify(token ? { agentUrl: AGENT_URL, agentToken: token } : { error: "jeton indisponible" }));
+    res.end(
+      JSON.stringify(
+        token
+          ? { agentUrl: AGENT_URL, agentToken: token, ...(device ? { device } : {}) }
+          : { error: "jeton indisponible" },
+      ),
+    );
     return;
   }
 

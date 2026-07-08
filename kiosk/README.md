@@ -86,8 +86,13 @@ sert aussi, au runtime, un `GET /kiosk-config.json` :
 ```
 
 `booth-client` le lit au démarrage (`loadKioskConfig`) : présent ⇒ Wi-Fi/réglages **réels**
-via l'agent ; absent (dev navigateur) ⇒ stubs (mock). Ce petit serveur local (à packager
-avec le front) est le seul à lire le jeton sur disque — il reste hors du bundle public.
+via l'agent ; absent (dev navigateur) ⇒ stubs (mock). Ce petit serveur local est le seul à lire
+les secrets sur disque — ils restent hors du bundle public.
+
+**Creds device (Supabase) au runtime aussi (sécu 2026-07-08).** `/kiosk-config.json` inclut, si
+provisionné, un objet `device` (`boothId`/`orgId`/`deviceEmail`/`devicePassword`) lu depuis
+`/etc/kioskoscope/device.json` (0600). Le `booth-client` n'embarque donc PLUS ces creds dans le
+bundle : un build public reste **inerte** (mode mock). En dev, repli sur `.env` (`import.meta.env.DEV`).
 
 ## État
 

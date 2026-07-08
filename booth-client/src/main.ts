@@ -30,7 +30,10 @@ async function main(): Promise<void> {
   const root = document.getElementById("app");
   if (!root) throw new Error("Élément #app introuvable");
 
-  const backend = new BoothBackend();
+  // Config borne au RUNTIME (jeton agent + creds device), fournie par le serveur local
+  // via /kiosk-config.json — jamais dans le bundle. Absente (dev/déploiement public) → mock.
+  const kioskConfig = await loadKioskConfig();
+  const backend = new BoothBackend(kioskConfig?.device);
   let boothId = FALLBACK_BOOTH_ID;
   let organizationId = FALLBACK_ORG_ID;
   let online = false;
@@ -115,8 +118,7 @@ async function main(): Promise<void> {
   }
 
   // Services système : si la borne fournit l'agent local (jeton via /kiosk-config.json,
-  // HORS bundle), Wi-Fi/réglages sont RÉELS ; sinon (dev navigateur) on garde les stubs.
-  const kioskConfig = await loadKioskConfig();
+  // HORS bundle, déjà chargé plus haut), Wi-Fi/réglages sont RÉELS ; sinon (dev) stubs.
   let wifi: WifiAdapter;
   let settings: OperatorSettingsHooks;
   if (kioskConfig) {

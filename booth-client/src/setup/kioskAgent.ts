@@ -12,19 +12,39 @@
 import type { WifiAdapter, WifiConnectResult, WifiNetwork } from "./wifi";
 import type { OperatorSettingsHooks } from "./operatorMenu";
 
+/** Identifiants Supabase du device — fournis AU RUNTIME, jamais compilés dans le bundle. */
+export interface KioskDeviceConfig {
+  readonly boothId: string;
+  readonly orgId: string;
+  readonly deviceEmail: string;
+  readonly devicePassword: string;
+}
+
 export interface KioskConfig {
   readonly agentUrl: string;
   readonly agentToken: string;
+  /** Creds device, servis localement par la borne. Absent = build public inerte (mock). */
+  readonly device?: KioskDeviceConfig;
 }
 
-/** Charge la config locale de la borne (jeton hors bundle). null = pas de borne (dev). */
+function parseDevice(d: unknown): KioskDeviceConfig | undefined {
+  if (!d || typeof d !== "object") return undefined;
+  const o = d as Record<string, unknown>;
+  const ok = ["boothId", "orgId", "deviceEmail", "devicePassword"].every((k) => typeof o[k] === "string" && o[k] !== "");
+  return ok
+    ? { boothId: String(o.boothId), orgId: String(o.orgId), deviceEmail: String(o.deviceEmail), devicePassword: String(o.devicePassword) }
+    : undefined;
+}
+
+/** Charge la config locale de la borne (jeton + creds device, hors bundle). null = pas de borne (dev). */
 export async function loadKioskConfig(): Promise<KioskConfig | null> {
   try {
     const res = await fetch("/kiosk-config.json", { cache: "no-store" });
     if (!res.ok) return null;
     const cfg = (await res.json()) as Partial<KioskConfig>;
     if (typeof cfg.agentUrl === "string" && typeof cfg.agentToken === "string") {
-      return { agentUrl: cfg.agentUrl, agentToken: cfg.agentToken };
+      const device = parseDevice(cfg.device);
+      return { agentUrl: cfg.agentUrl, agentToken: cfg.agentToken, ...(device ? { device } : {}) };
     }
     return null;
   } catch {

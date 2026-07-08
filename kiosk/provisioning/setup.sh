@@ -22,6 +22,16 @@ fi
 chmod 0600 /etc/kioskoscope/agent.token
 chown "$KIOSK_USER":"$KIOSK_USER" /etc/kioskoscope/agent.token
 
+echo "→ Creds device (Supabase) — fournis au runtime, JAMAIS dans le bundle"
+if [[ ! -s /etc/kioskoscope/device.json ]]; then
+  cat > /etc/kioskoscope/device.json <<'JSON'
+{ "boothId": "", "orgId": "", "deviceEmail": "", "devicePassword": "" }
+JSON
+  echo "  ⚠ /etc/kioskoscope/device.json créé VIDE — renseignez les creds de CETTE borne."
+fi
+chmod 0600 /etc/kioskoscope/device.json
+chown "$KIOSK_USER":"$KIOSK_USER" /etc/kioskoscope/device.json
+
 echo "→ Helper luminosité"
 install -m 0755 "$REPO/kiosk/provisioning/kiosk-brightness" /usr/local/sbin/kiosk-brightness
 

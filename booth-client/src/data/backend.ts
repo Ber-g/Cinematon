@@ -18,7 +18,11 @@ interface BoothConfig {
   readonly devicePassword: string;
 }
 
-function readConfig(): BoothConfig | null {
+// DEV UNIQUEMENT : creds depuis le .env local. En PRODUCTION, les identifiants device
+// viennent du RUNTIME (/kiosk-config.json servi par la borne), jamais du bundle — sinon un
+// build public embarquerait le mot de passe device en clair (finding sécu 2026-07-08).
+function readDevConfig(): BoothConfig | null {
+  if (!import.meta.env.DEV) return null;
   const boothId = import.meta.env.VITE_BOOTH_ID as string | undefined;
   const orgId = import.meta.env.VITE_ORG_ID as string | undefined;
   const deviceEmail = import.meta.env.VITE_DEVICE_EMAIL as string | undefined;
@@ -60,7 +64,12 @@ function rowToFilm(row: Record<string, unknown>): Film {
 }
 
 export class BoothBackend {
-  private readonly cfg = readConfig();
+  private readonly cfg: BoothConfig | null;
+
+  /** `runtime` = creds fournis par la borne (/kiosk-config.json). Repli .env en DEV seulement. */
+  constructor(runtime?: BoothConfig) {
+    this.cfg = runtime ?? readDevConfig();
+  }
 
   /** La Kiosk est-elle branchée sur Supabase (config présente + client) ? */
   get isConfigured(): boolean {
