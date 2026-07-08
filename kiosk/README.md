@@ -74,9 +74,25 @@ sudo /opt/kioskoscope/kiosk/provisioning/setup.sh
 sudo systemctl enable --now kioskoscope-kiosk.service
 ```
 
+## Injection du jeton (hors bundle) — `/kiosk-config.json`
+
+Le `booth-client` (dans Chromium) ne peut pas lire `/etc/kioskoscope/agent.token`, et le
+jeton **ne doit pas** être compilé dans le bundle (sinon un contenu web compromis aurait le
+privilège système). Solution : la **couche de service locale** qui sert le front à Chromium
+sert aussi, au runtime, un `GET /kiosk-config.json` :
+
+```json
+{ "agentUrl": "http://127.0.0.1:4599", "agentToken": "<contenu de /etc/kioskoscope/agent.token>" }
+```
+
+`booth-client` le lit au démarrage (`loadKioskConfig`) : présent ⇒ Wi-Fi/réglages **réels**
+via l'agent ; absent (dev navigateur) ⇒ stubs (mock). Ce petit serveur local (à packager
+avec le front) est le seul à lire le jeton sur disque — il reste hors du bundle public.
+
 ## État
 
-- ✅ Agent local (Wi-Fi/power/display/system-info + os-update) + systemd + provisioning + sécurité.
-- ⏳ **Câblage `booth-client`** : remplacer les stubs du menu (`setup/wifi.ts`, hooks
-  `main.ts`) par des appels à l'agent (fetch `127.0.0.1:4599` + jeton injecté au runtime).
+- ✅ Agent local (Wi-Fi/power/display/volume/system-info + os-update) + systemd + provisioning + sécurité.
+- ✅ **Câblage `booth-client`** : `setup/kioskAgent.ts` (client + `AgentWifiAdapter` + réglages
+  réels), `main.ts` bascule agent vs stubs selon `/kiosk-config.json`. Build vert.
+  ⏳ Reste = **vérif sur borne réelle** + le petit serveur local qui sert front + `/kiosk-config.json`.
 - ⏳ **CIN-077** : canal de commande MAJ OS (migration + relais booth-client + UI dashboard).

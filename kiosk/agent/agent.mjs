@@ -115,6 +115,14 @@ const actions = {
     return { ok: true, pct };
   },
 
+  async audioVolume(body) {
+    // Volume de session (ALSA Master) — pas de privilège (session audio de l'utilisateur).
+    const pct = clampPct(body?.pct);
+    await run("amixer", ["-q", "sset", "Master", `${pct}%`]);
+    journal("volume", String(pct));
+    return { ok: true, pct };
+  },
+
   async powerRestart() {
     journal("restart", "kiosk-service");
     // Redémarre l'app kiosk, pas la machine (moins brutal). Reboot complet = /power/reboot.
@@ -151,6 +159,7 @@ const ROUTES = {
   "POST /wifi/scan": () => actions.wifiScan(),
   "POST /wifi/connect": (b) => actions.wifiConnect(b),
   "POST /display/brightness": (b) => actions.displayBrightness(b),
+  "POST /audio/volume": (b) => actions.audioVolume(b),
   "POST /power/restart": () => actions.powerRestart(),
   "POST /power/reboot": () => actions.powerReboot(),
   "GET /system/os-update/status": () => actions.osUpdateStatus(),

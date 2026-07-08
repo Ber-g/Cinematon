@@ -6,7 +6,8 @@ import { BoothBackend } from "./data/backend";
 import { setCatalog } from "./domain/catalog";
 import type { Play, Session } from "./domain/types";
 import { App } from "./ui/app";
-import { WifiManager } from "./setup/wifi";
+import { WifiManager, type WifiAdapter } from "./setup/wifi";
+import { AgentWifiAdapter, KioskAgentClient, createAgentSettings, loadKioskConfig } from "./setup/kioskAgent";
 import {
   EncryptedAccessStore,
   LocalStorageAccessJournal,
@@ -105,30 +106,42 @@ async function main(): Promise<void> {
     console.info("[booth] table d'accès de DÉMO chargée (dev) · op PIN 246810 / admin PIN 135790");
   }
 
-  let volume = 70;
-  let brightness = 100;
-  const settings: OperatorSettingsHooks = {
-    getVolume: () => volume,
-    setVolume: (v) => {
-      volume = v;
-    },
-    getBrightness: () => brightness,
-    setBrightness: (v) => {
-      brightness = v;
-      // Effet tangible en dev : la vraie luminosité passera par un service local.
-      document.documentElement.style.filter = v === 100 ? "" : `brightness(${v}%)`;
-    },
-    restart: () => {
-      // Stub : sur la Kiosk réelle → service local (systemd/OS). En dev on recharge.
-      console.info("[booth] redémarrage demandé (stub dev)");
-      location.reload();
-    },
-  };
+  // Services système : si la borne fournit l'agent local (jeton via /kiosk-config.json,
+  // HORS bundle), Wi-Fi/réglages sont RÉELS ; sinon (dev navigateur) on garde les stubs.
+  const kioskConfig = await loadKioskConfig();
+  let wifi: WifiAdapter;
+  let settings: OperatorSettingsHooks;
+  if (kioskConfig) {
+    const agent = new KioskAgentClient(kioskConfig);
+    wifi = new AgentWifiAdapter(agent);
+    settings = createAgentSettings(agent);
+    console.info("[booth] agent local détecté · Wi-Fi/réglages pilotés par la borne");
+  } else {
+    let volume = 70;
+    let brightness = 100;
+    wifi = new WifiManager();
+    settings = {
+      getVolume: () => volume,
+      setVolume: (v) => {
+        volume = v;
+      },
+      getBrightness: () => brightness,
+      setBrightness: (v) => {
+        brightness = v;
+        // Effet tangible en dev : la vraie luminosité passe par l'agent sur la borne.
+        document.documentElement.style.filter = v === 100 ? "" : `brightness(${v}%)`;
+      },
+      restart: () => {
+        console.info("[booth] redémarrage demandé (stub dev)");
+        location.reload();
+      },
+    };
+  }
 
   const operator = new OperatorMenu({
     store: accessStore,
     journal: accessJournal,
-    wifi: new WifiManager(),
+    wifi,
     settings,
     status: () => ({ boothId, orgId: organizationId, version: BOOTH_VERSION, online }),
   });
