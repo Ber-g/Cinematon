@@ -7,7 +7,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Bodoni:ital,wght@0,400;1,400&family=Open+Sans:wght@600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Bodoni:ital,wght@0,500;1,500&family=Open+Sans:wght@600&display=swap" rel="stylesheet">
 
   <style>
     /* =====================================================================
@@ -40,7 +40,7 @@
     }
 
     /* =====================================================================
-       STRUCTURE — logo centré, nav ancrée en bas.
+       STRUCTURE — logo centré, nav ancrée en bas, fond SVG + vignette.
        ===================================================================== */
     html, body {
       margin: 0;
@@ -53,13 +53,13 @@
          1. Un dégradé radial qui crée la vignette blanche en s'estompant vers les bords.
          2. Ton SVG de Montréal placé juste en dessous. */
       background-image: 
-        linear-gradient(to right, var(--color-bg) 0, rgba(255,255,255,0) 15%, rgba(255,255,255,0) calc(100% - 15%), var(--color-bg) 100%),
-        linear-gradient(to bottom, var(--color-bg) 0, rgba(255,255,255,0) 15%, rgba(255,255,255,0) calc(100% - 500px), var(--color-bg) 100%),        var(--bg-svg);     
+        radial-gradient(circle, rgba(255,255,255,0) 30%, var(--color-bg) 85%),
+        var(--bg-svg);
       
       /* Paramètres d'affichage du SVG : centré, pas de déformation (ratio préservé) */
       background-position: center center;
       background-repeat: no-repeat;
-      background-size: cover; 
+      background-size: contain; 
       
       display: flex;
       flex-direction: column;
@@ -89,23 +89,22 @@
 
     /* Rend les lettres indépendantes pour l'effet 3D individuel et l'animation */
     .letter {
-  display: inline-block;
-  white-space: pre;
-  color: var(--color-bg);
-  -webkit-text-stroke: var(--logo-stroke) var(--color-ink);
-  
-  /* Ton relief 3D d'origine */
-  text-shadow:
-    -1px -1px 0 #ffffff, -2px -2px 0 var(--color-ink),
-    -3px -3px 0 #ffffff, -4px -4px 0 var(--color-ink),
-    -5px -5px 0 #ffffff, -6px -6px 0 var(--color-ink),
-     /* 2. Blanc SOUS le texte (après les ombres 3D = en dessous visuellement) */
-    0 0px 10px white,
-    0 0px 20px white,
-    0 0px 30px white;
+      display: inline-block;
+      white-space: pre; /* Préserve les espaces si nécessaire */
+      
+      /* Face avant OPAQUE transférée ici pour isoler chaque lettre */
+      color: var(--color-bg);
+      -webkit-text-stroke: var(--logo-stroke) var(--color-ink);
 
-  transition: transform 0.3s ease; 
-}
+      /* Relief 3D rayé appliqué par lettre */
+      text-shadow:
+        -1px -1px 0 #ffffff, -2px -2px 0 var(--color-ink),
+        -3px -3px 0 #ffffff, -4px -4px 0 var(--color-ink),
+        -5px -5px 0 #ffffff, -6px -6px 0 var(--color-ink);
+        
+      /* Transition fluide pour le retour à la normale */
+      transition: transform 0.3s ease; 
+    }
 
     /* La classe qui sera activée par le JavaScript */
     .wave {
@@ -130,7 +129,7 @@
 
     .btn-text {
       font-family: var(--font-serif);
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 500;
       text-transform: lowercase;
       color: var(--color-link);
@@ -150,26 +149,31 @@
     /* =====================================================================
        MOBILE — logo plus grand, « oscope » masqué (marque courte « Kiosk »).
        ===================================================================== */
-    .mobile-hide { display: none; } /* Par défaut masqué, géré par le conteneur */
-
-    @media (min-width: 768px) {
-      .mobile-hide { display: inline-block; }
+    .mobile-hide { 
+      display: inline-block; 
     }
 
     @media (max-width: 767px) {
-      .logo-text  { font-size: var(--logo-size-mobile); }
+      .mobile-hide { 
+        display: none !important; 
+      }
+      .logo-text  { 
+        font-size: var(--logo-size-mobile); 
+      }
       .footer-nav {
         gap: var(--nav-gap-mobile);
         margin-bottom: var(--nav-bottom-mobile);
       }
-      body::before { height: 50px; }
+      body::before { 
+        height: 50px; 
+      }
     }
   </style>
 </head>
 <body>
 
   <div class="logo-text" id="logo">
-    <span class="letter">K</span>
+    <span class="letter">k</span>
     <span class="letter">i</span>
     <span class="letter">o</span>
     <span class="letter">s</span>
@@ -180,11 +184,9 @@
     <span class="letter mobile-hide">o</span>
     <span class="letter mobile-hide">p</span>
     <span class="letter mobile-hide">e</span>
-</div>
+  </div>
 
   <nav class="footer-nav">
-    <a href="#trouve" class="btn-text">trouve</a>
-    <a href="#about" class="btn-text">about</a>
     <a href="#connect" class="btn-text">connect</a>
     <a href="#contact" class="btn-text">contact</a>
   </nav>
@@ -193,16 +195,17 @@
     function triggerHola() {
         const letters = document.querySelectorAll('.letter');
         
-        // Filtre précis basé sur la visibilité réelle à l'écran
+        // Filtre pour n'appliquer la vague qu'aux éléments réellement visibles (gère le mode mobile automatiquement)
         const visibleLetters = Array.from(letters).filter(letter => {
             return window.getComputedStyle(letter).display !== 'none';
         });
 
-        // Déclenchement séquentiel de la hola
+        // Déclenchement en cascade (60ms d'écart entre chaque lettre)
         visibleLetters.forEach((letter, index) => {
             setTimeout(() => {
                 letter.classList.add('wave');
                 
+                // Nettoyage de la classe une fois le saut terminé
                 setTimeout(() => {
                     letter.classList.remove('wave');
                 }, 400); 
@@ -210,13 +213,13 @@
             }, index * 60); 
         });
 
-        // Intervalle aléatoire entre 5s et 20s
+        // Calcul du prochain intervalle aléatoire (entre 5 et 20 secondes)
         const nextInterval = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
         setTimeout(triggerHola, nextInterval);
     }
 
-    // Premier lancement automatique après 3 secondes
+    // Premier déclenchement de l'animation 3 secondes après l'ouverture
     setTimeout(triggerHola, 3000);
   </script>
 </body>
-</html> 
+</html>
