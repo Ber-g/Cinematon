@@ -146,9 +146,12 @@ const actions = {
     // MAJ OS pilotée back-office (CIN-077) : patch de sécurité. Liste blanche sudoers.
     journal("os_update", "start");
     await run("sudo", ["/usr/bin/apt-get", "update"], { timeoutMs: 120_000 });
-    await run("sudo", ["/usr/bin/apt-get", "-y", "upgrade"], { timeoutMs: 600_000 });
+    const out = await run("sudo", ["/usr/bin/apt-get", "-y", "upgrade"], { timeoutMs: 600_000 });
     journal("os_update", "done");
-    return { ok: true };
+    // Queue de sortie apt (remontée telle quelle au back-office par le relais device).
+    const tail = String(out).split("\n").slice(-40).join("\n").trim();
+    const { pending } = await this.osUpdateStatus().catch(() => ({ pending: 0 }));
+    return { ok: true, log: tail, pending };
   },
 };
 

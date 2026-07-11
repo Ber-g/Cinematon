@@ -84,6 +84,14 @@ export class KioskAgentClient {
   restart(): Promise<unknown> {
     return this.call("POST", "/power/restart");
   }
+  /** MAJ OS (apt) — CIN-077. Renvoie la queue de sortie + le nb de paquets restants. */
+  osUpdate(): Promise<{ ok: boolean; log?: string; pending?: number }> {
+    return this.call("POST", "/system/os-update");
+  }
+  /** Nombre de paquets système en attente (sans rien appliquer). */
+  osUpdateStatus(): Promise<{ pending: number }> {
+    return this.call("GET", "/system/os-update/status");
+  }
 }
 
 /** Adaptateur Wi-Fi réel (agent) — même contrat que le mock `WifiManager`. */

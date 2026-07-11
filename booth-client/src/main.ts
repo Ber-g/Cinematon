@@ -126,6 +126,16 @@ async function main(): Promise<void> {
     wifi = new AgentWifiAdapter(agent);
     settings = createAgentSettings(agent);
     console.info("[booth] agent local détecté · Wi-Fi/réglages pilotés par la borne");
+
+    // CIN-077 : relais MAJ OS. Si branché Supabase, la borne interroge périodiquement ses
+    // commandes de patch et les applique via l'agent local (apt). Écriture réservée global_admin
+    // côté serveur → seule la plateforme déclenche ; la borne ne fait qu'exécuter et remonter.
+    if (online) {
+      const OS_POLL_MS = 5 * 60_000;
+      const relay = (): void => void backend.relayOsUpdates(() => agent.osUpdate());
+      relay();
+      window.setInterval(relay, OS_POLL_MS);
+    }
   } else {
     let volume = 70;
     let brightness = 100;

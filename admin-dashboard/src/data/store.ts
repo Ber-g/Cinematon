@@ -116,6 +116,18 @@ export interface UpdatesReport {
   readonly rows: readonly UpdatesRow[];
 }
 
+/** Commande de MAJ OS (back-office → borne), CIN-077. Une par borne à la fois. */
+export interface OsUpdateCommand {
+  readonly id: string;
+  readonly boothId: string;
+  readonly status: "pending" | "running" | "done" | "failed";
+  readonly packagesPending: number | null;
+  readonly requestedAt: number;
+  readonly finishedAt: number | null;
+  readonly log: string;
+  readonly error: string;
+}
+
 /** Distributeur (ayant droit) — org-scoped, donc rattaché au territoire de l'org. */
 export interface Distributor {
   readonly id: string;
@@ -225,6 +237,7 @@ export class FleetStore {
   private licenseBoothsCache: LicenseBooth[] = [];
   private releases: Release[] = [];
   private boothUpdates: BoothUpdate[] = [];
+  private osUpdateCommands: OsUpdateCommand[] = [];
   private orgs: OrgSummary[] = [];
   // Feature gating (CIN-080) : entitlements par org (souscription + modules). Absent = tout ON.
   private entitlements = new Map<string, { subscriptionType: string; enabledModules: string[] }>();
@@ -367,6 +380,15 @@ export class FleetStore {
       id: String(r.id), boothId: String(r.booth_id), releaseId: String(r.release_id),
       status: r.status as BoothUpdate["status"], scheduledFor: r.scheduled_for ? new Date(String(r.scheduled_for)).getTime() : null,
       appliedAt: r.applied_at ? new Date(String(r.applied_at)).getTime() : null, error: String(r.error ?? ""),
+    }));
+    // MAJ OS (table 0017 ; gracieux si pas encore appliquée → tableau vide).
+    const { data: osc } = await supabase!.from("os_update_commands").select("*");
+    this.osUpdateCommands = ((osc ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id), boothId: String(r.booth_id), status: r.status as OsUpdateCommand["status"],
+      packagesPending: (r.packages_pending as number | null) ?? null,
+      requestedAt: new Date(String(r.requested_at)).getTime(),
+      finishedAt: r.finished_at ? new Date(String(r.finished_at)).getTime() : null,
+      log: String(r.log ?? ""), error: String(r.error ?? ""),
     }));
     await this.enrichBooths();
     this.authed = true;
@@ -1047,6 +1069,32 @@ export class FleetStore {
       };
     });
     return { releases: this.releasesList(), rows };
+  }
+
+  // ── MAJ OS (CIN-077) ─────────────────────────────────────────────────────────
+  /** Dernière commande de MAJ OS d'une borne (celle qui compte pour l'UI). */
+  osUpdateFor(boothId: string): OsUpdateCommand | undefined {
+    return this.osUpdateCommands
+      .filter((c) => c.boothId === boothId)
+      .sort((a, b) => b.requestedAt - a.requestedAt)[0];
+  }
+
+  /** Déclenche une MAJ OS sur des bornes (réservé global_admin — la plateforme patche). Crée
+   *  une commande `pending` par borne ; la borne (device) la relaie vers l'agent local. */
+  async requestOsUpdate(boothIds: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    if (this.mode !== "supabase") return { ok: true };
+    if (!this.isGlobalAdmin) return { ok: false, error: "Réservé à la plateforme." };
+    const uid = this.identity?.user.id ?? null;
+    const active = new Set(this.osUpdateCommands.filter((c) => c.status === "pending" || c.status === "running").map((c) => c.boothId));
+    const rows = boothIds
+      .map((bId) => this.booths.find((b) => b.id === bId))
+      .filter((b): b is Booth => !!b && !active.has(b.id)) // une borne déjà en cours : on ne re-déclenche pas (index partiel unique).
+      .map((b) => ({ organization_id: b.organizationId, booth_id: b.id, status: "pending", requested_by: uid }));
+    if (rows.length === 0) return { ok: false, error: "Bornes déjà en cours de MAJ, ou aucune ciblée." };
+    const { error } = await supabase!.from("os_update_commands").insert(rows);
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
   }
 
   // ── Droits & redevances / distributeurs ──────────────────────────────────────

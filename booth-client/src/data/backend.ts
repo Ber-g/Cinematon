@@ -147,6 +147,41 @@ export class BoothBackend {
     return newVersion;
   }
 
+  /**
+   * Relais MAJ OS (CIN-077) : lit les commandes `pending` de CETTE borne, applique chacune via
+   * l'agent local (`runUpdate`, injecté → le backend ne dépend pas de l'agent) et remonte le
+   * résultat (`running` → `done`/`failed` + journal apt). La RLS device n'autorise que SA borne.
+   * Fire-and-forget : une erreur agent → commande `failed`, jamais de crash du parcours.
+   */
+  async relayOsUpdates(runUpdate: () => Promise<{ log?: string; pending?: number }>): Promise<void> {
+    if (!supabase || !this.cfg) return;
+    const { data, error } = await supabase
+      .from("os_update_commands")
+      .select("id,status")
+      .eq("booth_id", this.cfg.boothId)
+      .eq("status", "pending");
+    if (error) {
+      console.error("[booth] lecture commandes MAJ OS :", error.message);
+      return;
+    }
+    for (const cmd of (data ?? []) as Array<{ id: string }>) {
+      // Prend la commande (running). Le with-check RLS garantit qu'elle est bien à cette borne.
+      await supabase.from("os_update_commands").update({ status: "running", started_at: new Date().toISOString() }).eq("id", cmd.id);
+      try {
+        const res = await runUpdate();
+        await supabase
+          .from("os_update_commands")
+          .update({ status: "done", finished_at: new Date().toISOString(), log: (res.log ?? "").slice(0, 8000), packages_pending: res.pending ?? null, error: "" })
+          .eq("id", cmd.id);
+        console.info("[booth] MAJ OS appliquée.");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Échec MAJ OS.";
+        await supabase.from("os_update_commands").update({ status: "failed", finished_at: new Date().toISOString(), error: msg.slice(0, 2000) }).eq("id", cmd.id);
+        console.error("[booth] MAJ OS échouée :", msg);
+      }
+    }
+  }
+
   /** Catalogue réel de l'org (médias actifs, scoping RLS). */
   async loadCatalog(): Promise<Film[]> {
     if (!supabase) return [];

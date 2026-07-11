@@ -49,17 +49,20 @@ Principe F17 : **une compromission de la web-app ne doit JAMAIS donner root.**
 ## MAJ OS depuis le back-office (CIN-077) — sécurité des patchs
 
 Objectif : **pas de faille locale qui traîne** — le parc reste patché sans intervention
-physique. L'agent expose déjà `POST /system/os-update` (apt update && upgrade, liste
-blanche) et `GET /system/os-update/status` (nombre de paquets en attente).
+physique. L'agent expose `POST /system/os-update` (apt update && upgrade, liste blanche →
+renvoie la queue de sortie + paquets restants) et `GET /system/os-update/status`.
 
-Reste à construire (design) :
-- **Canal de commande** back-office → borne : table `os_update_commands` (ou extension du
-  modèle `booth_updates`) — cible (borne/parc), fenêtre, statut (`pending`/`running`/
-  `done`/`failed`), horodatage ⇒ **migration à appliquer par Beranger**.
-- Le `booth-client` (déjà authentifié device) **relaie** : lit les commandes dues, appelle
-  l'agent local, remonte le statut + le journal. RLS : commande scopée org/borne,
-  écriture réservée `global_admin` (la plateforme décide des patchs), lecture device.
-- Dashboard : bouton **« Mettre à jour l'OS »** par borne / parc + état des patchs en attente.
+Câblage livré (CIN-077) :
+- **Canal de commande** `os_update_commands` (migration `0017`) — une commande par borne,
+  statut `pending`/`running`/`done`/`failed`, journal apt, horodatage. RLS : lecture org,
+  **écriture humaine réservée `global_admin`** (la plateforme décide des patchs), device
+  lit + met à jour SA borne. Index partiel unique = une seule commande active par borne.
+  ⇒ **migration `0017` à appliquer par Beranger.**
+- Le `booth-client` (authentifié device) **relaie** (`backend.relayOsUpdates` + poll 5 min) :
+  lit les commandes `pending` de sa borne, appelle l'agent local, remonte `running` →
+  `done`/`failed` + le journal apt.
+- Dashboard (page Maintenance → « État des Kiosks ») : bouton **« MAJ OS »** par borne et
+  **« Mettre à jour l'OS du parc »** (global_admin), colonne d'état des patchs.
 
 ⚠️ **À trancher** : politique d'auto-patch sécurité (ex. `unattended-upgrades` pour les
 MAJ critiques automatiques) vs 100 % piloté back-office. Recommandation @cto : **les deux**
@@ -103,4 +106,5 @@ bundle : un build public reste **inerte** (mode mock). En dev, repli sur `.env` 
   à Chromium **et** `/kiosk-config.json` (jeton lu au runtime, hors bundle ; même origine, pas de
   CORS). Anti-traversal vérifié. Service `kioskoscope-web.service`. ⏳ Reste = **vérif sur borne réelle**
   (déployer le build dans `KIOSK_WEB_ROOT`).
-- ⏳ **CIN-077** : canal de commande MAJ OS (migration + relais booth-client + UI dashboard).
+- ✅ **CIN-077** : canal de commande MAJ OS livré (migration `0017` + relais `booth-client` +
+  UI dashboard). ⏳ Reste = **appliquer `0017`** puis valider sur borne réelle (agent apt).

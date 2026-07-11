@@ -17,6 +17,14 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   rolled_back: { label: "Rollback", cls: "bg-red-lt" },
 };
 
+// MAJ OS (CIN-077) : statut de la commande relayée à l'agent local de la borne.
+const OS_STATUS: Record<string, { label: string; cls: string }> = {
+  pending: { label: "Demandée", cls: "bg-azure-lt" },
+  running: { label: "En cours", cls: "bg-blue-lt" },
+  done: { label: "À jour", cls: "bg-green-lt" },
+  failed: { label: "Échec", cls: "bg-red-lt" },
+};
+
 export function maintenancePage(store: FleetStore, onChanged: () => void): HTMLElement {
   const container = el("div", {}, [el("div", { class: "text-secondary p-3" }, ["Chargement…"])]);
   const reload = (): void => container.replaceChildren(render(store, store.updatesReport(), () => { onChanged(); reload(); }));
@@ -73,15 +81,43 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
       actions.push(rb);
     }
 
+    // ── MAJ OS (CIN-077) : état de la dernière commande + déclencheur (global_admin) ──
+    const osCmd = store.osUpdateFor(row.boothId);
+    const osCell = osCmd
+      ? el("span", { class: "d-inline-flex align-items-center gap-1" }, [
+          el("span", { class: `badge ${OS_STATUS[osCmd.status]?.cls ?? "bg-secondary-lt"}`, ...(osCmd.error ? { title: osCmd.error } : {}) }, [OS_STATUS[osCmd.status]?.label ?? osCmd.status]),
+          osCmd.status === "done" && osCmd.packagesPending === 0 ? el("span", {}, []) : (osCmd.packagesPending ? el("span", { class: "text-secondary small" }, [`${osCmd.packagesPending} paquet${osCmd.packagesPending > 1 ? "s" : ""}`]) : el("span", {}, [])),
+        ])
+      : el("span", { class: "text-secondary" }, ["—"]);
+    const osBusy = osCmd?.status === "pending" || osCmd?.status === "running";
+    if (store.isGlobalAdmin && !osBusy) {
+      const osBtn = el("button", { class: "btn btn-sm", type: "button", title: "Demander une MAJ système (apt) à cette borne" }, ["MAJ OS"]);
+      osBtn.addEventListener("click", () => void store.requestOsUpdate([row.boothId]).then((res) => (res.ok ? reload() : alert(res.error ?? "Échec."))));
+      actions.push(osBtn);
+    }
+
     return el("tr", {}, [
       el("td", { class: "fw-bold" }, [row.boothLabel]),
       el("td", {}, [el("span", { class: "badge bg-blue-lt" }, [row.currentVersion])]),
       el("td", { class: "text-secondary text-nowrap" }, [relativeTime(row.lastHeartbeat)]),
       el("td", {}, [hourSel]),
       el("td", {}, [latestCell]),
+      el("td", {}, [osCell]),
       el("td", { class: "text-end" }, [el("span", { class: "btn-list justify-content-end" }, actions)]),
     ]);
   });
+
+  // Déclencheur MAJ OS sur tout le parc visible (réservé plateforme).
+  const osFleet = store.isGlobalAdmin
+    ? el("button", { class: "btn btn-sm", type: "button" }, ["Mettre à jour l'OS du parc"])
+    : el("span", {}, []);
+  if (store.isGlobalAdmin) {
+    osFleet.addEventListener("click", () => {
+      const ids = rep.rows.map((r) => r.boothId);
+      if (ids.length === 0) return;
+      void store.requestOsUpdate(ids).then((res) => (res.ok ? reload() : alert(res.error ?? "Échec.")));
+    });
+  }
 
   return el("div", {}, [
     el("div", { class: "mb-3" }, [
@@ -98,11 +134,11 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
       ]),
     ]),
     el("div", { class: "card" }, [
-      el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["État des Kiosks"])]),
+      el("div", { class: "card-header d-flex align-items-center" }, [el("h3", { class: "card-title m-0" }, ["État des Kiosks"]), el("div", { class: "ms-auto" }, [osFleet])]),
       el("div", { class: "table-responsive" }, [
         el("table", { class: "table table-vcenter card-table" }, [
-          el("thead", {}, [el("tr", {}, [el("th", {}, ["Kiosk"]), el("th", {}, ["Version"]), el("th", {}, ["Dernier contact"]), el("th", {}, ["Fenêtre MAJ"]), el("th", {}, ["Dernier déploiement"]), el("th", {}, [])])]),
-          el("tbody", {}, boothRows.length ? boothRows : [el("tr", {}, [el("td", { colspan: "6", class: "text-secondary text-center py-3" }, ["Aucun Kiosk."])])]),
+          el("thead", {}, [el("tr", {}, [el("th", {}, ["Kiosk"]), el("th", {}, ["Version"]), el("th", {}, ["Dernier contact"]), el("th", {}, ["Fenêtre MAJ"]), el("th", {}, ["Dernier déploiement"]), el("th", {}, ["MAJ OS"]), el("th", {}, [])])]),
+          el("tbody", {}, boothRows.length ? boothRows : [el("tr", {}, [el("td", { colspan: "7", class: "text-secondary text-center py-3" }, ["Aucun Kiosk."])])]),
         ]),
       ]),
     ]),
