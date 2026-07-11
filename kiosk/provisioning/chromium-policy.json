@@ -1,0 +1,38 @@
+{
+  "_comment": "Kioskoscope — verrouillage kiosque Chromium (CIN-072). Politique MANAGÉE : appliquée par l'OS, non contournable par le contenu web ni par l'opérateur. Fusionnée avec kiosk-mtls.json (CIN-078) dans /etc/chromium/policies/managed/. Objectif : le public reste dans le booth-client, ne peut pas atteindre l'OS, le système de fichiers, ni les réglages du navigateur.",
+
+  "DeveloperToolsAvailability": 2,
+
+  "URLBlocklist": [
+    "file://*",
+    "chrome://*",
+    "chrome-extension://*",
+    "devtools://*",
+    "view-source:*",
+    "ftp://*"
+  ],
+
+  "DownloadRestrictions": 3,
+  "PrintingEnabled": false,
+  "TranslateEnabled": false,
+
+  "DefaultPopupsSetting": 2,
+  "DefaultNotificationsSetting": 2,
+  "DefaultGeolocationSetting": 2,
+  "DefaultSensorsSetting": 2,
+
+  "PasswordManagerEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "ImportSavedPasswords": false,
+
+  "BrowserAddPersonEnabled": false,
+  "BrowserGuestModeEnabled": false,
+  "BackgroundModeEnabled": false,
+  "MetricsReportingEnabled": false,
+  "DefaultBrowserSettingEnabled": false,
+  "PromotionalTabsEnabled": false,
+  "ShowHomeButton": false,
+  "BookmarkBarEnabled": false,
+  "SafeBrowsingEnabled": true
+}

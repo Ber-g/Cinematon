@@ -46,6 +46,33 @@ Principe F17 : **une compromission de la web-app ne doit JAMAIS donner root.**
 4. **Traçabilité.** Chaque action est journalisée (`/var/log/kioskoscope-agent.log`,
    qui/quoi/quand ; jamais le mot de passe Wi-Fi) — destinée à remonter au back-office.
 
+## Verrouillage kiosque (CIN-072) — le public reste dans l'app
+
+Principe : **un visiteur ne peut pas sortir du booth-client vers l'OS.** Défense en couches,
+la ligne de front étant l'OS (non contournable par le contenu web) :
+
+1. **Xorg** (`provisioning/xorg-kiosk-lockdown.conf` → `/etc/X11/xorg.conf.d/`) :
+   `DontVTSwitch` (bloque Ctrl+Alt+Fn → aucun TTY de login), `DontZap` (bloque le kill X),
+   et blanking/veille désactivés (la borne reste allumée). **C'est le contrôle critique** —
+   sans lui, un Ctrl+Alt+F2 donne un shell.
+2. **Politique Chromium managée** (`provisioning/chromium-policy.json` →
+   `/etc/chromium/policies/managed/kiosk-lockdown.json`, fusionnée avec `kiosk-mtls.json`) :
+   devtools désactivés, `URLBlocklist` sur `file://`/`chrome://`/`view-source:`/`ftp://`
+   (schémas qui atteindraient l'OS), téléchargements/impression/popups/traduction coupés,
+   gestionnaire de mots de passe & autofill off. **Managée = ni le web ni l'opérateur ne
+   peuvent l'annuler.**
+3. **VT sans login** : `getty@tty2..tty6` masqués (défense en profondeur ; récupération par
+   **SSH** ou reboot maintenance, `DontVTSwitch` bloquant déjà l'accès depuis X).
+4. **Chromium** lancé `--kiosk --incognito` + flags de durcissement (pas de first-run, pas de
+   bulle de crash, composants/traduction/réseau de fond coupés) ; watchdog `Restart=always`.
+5. **Couche app** (`booth-client/setup/kioskLockdown.ts`, active seulement si agent détecté) :
+   menu contextuel / sélection / glisser neutralisés, raccourcis d'évasion annulables avalés.
+   Corollaire UX : « En savoir plus » d'un film devient un **QR** (le visiteur ouvre le lien
+   sur SON téléphone) au lieu d'un onglet externe — la borne ne navigue jamais hors de l'app.
+
+> ⚠️ **Résiduel (hors logiciel)** : l'accès physique au **boot** (menu GRUB / BIOS) reste un
+> vecteur — à couvrir par **mot de passe BIOS + GRUB** au déploiement matériel (@qa).
+
 ## MAJ OS depuis le back-office (CIN-077) — sécurité des patchs
 
 Objectif : **pas de faille locale qui traîne** — le parc reste patché sans intervention
@@ -108,3 +135,6 @@ bundle : un build public reste **inerte** (mode mock). En dev, repli sur `.env` 
   (déployer le build dans `KIOSK_WEB_ROOT`).
 - ✅ **CIN-077** : canal de commande MAJ OS livré (migration `0017` + relais `booth-client` +
   UI dashboard). ⏳ Reste = **appliquer `0017`** puis valider sur borne réelle (agent apt).
+- ✅ **CIN-072** : verrouillage kiosque livré (politique Chromium managée + Xorg `DontVTSwitch` +
+  gettys masqués + flags + guard app + « En savoir plus » → QR). ⏳ Reste = **valider sur borne
+  réelle** (tests d'évasion @qa) + mot de passe BIOS/GRUB au montage matériel.

@@ -11,6 +11,10 @@ Environment=DISPLAY=:0
 # ou chargé via file://. URL à ajuster au packaging final du front.
 ExecStart=/usr/bin/chromium --kiosk --incognito --noerrdialogs --disable-infobars \
   --disable-pinch --overscroll-history-navigation=0 --check-for-update-interval=31536000 \
+  --no-first-run --fast --fast-start --disable-session-crashed-bubble \
+  --disable-component-update --disable-background-networking --disable-translate \
+  --disable-features=Translate,TranslateUI --password-store=basic \
+  --autoplay-policy=no-user-gesture-required \
   http://localhost:8080/
 # Watchdog : si Chromium tombe/est fermé, on relance → jamais d'écran figé (F4).
 Restart=always

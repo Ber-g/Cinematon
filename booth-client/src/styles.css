@@ -441,6 +441,32 @@ h2 {
   line-height: 1.5;
 }
 
+/* « En savoir plus » sur borne verrouillée (CIN-072) : QR → téléphone du visiteur. */
+.learn-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.learn-more__label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.learn-more__qr {
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+}
+
+.learn-more__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .stills {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

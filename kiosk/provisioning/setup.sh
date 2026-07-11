@@ -39,6 +39,20 @@ echo "→ Liste blanche sudo (validée avant activation)"
 install -m 0440 "$REPO/kiosk/provisioning/sudoers-kioskoscope" /etc/sudoers.d/kioskoscope
 visudo -c
 
+echo "→ Verrouillage kiosque (CIN-072) : politique Chromium managée + X + TTY"
+# Politique Chromium (navigation/devtools/téléchargements/impression verrouillés). Coexiste
+# avec kiosk-mtls.json (CIN-078) : Chromium fusionne tous les JSON du dossier managed.
+install -d -m 0755 /etc/chromium/policies/managed
+install -m 0644 "$REPO/kiosk/provisioning/chromium-policy.json" /etc/chromium/policies/managed/kiosk-lockdown.json
+# X : bloque la bascule TTY (Ctrl+Alt+Fn), le kill X (Ctrl+Alt+Retour), et le blanking.
+install -d -m 0755 /etc/X11/xorg.conf.d
+install -m 0644 "$REPO/kiosk/provisioning/xorg-kiosk-lockdown.conf" /etc/X11/xorg.conf.d/10-kiosk-lockdown.conf
+# Défense en profondeur : pas de login sur les VT basculables (2..6). tty1 gardé (X + secours).
+# Récupération = SSH ou reboot en mode maintenance. `DontVTSwitch` bloque déjà l'accès depuis X.
+for vt in 2 3 4 5 6; do
+  systemctl mask "getty@tty${vt}.service" >/dev/null 2>&1 || true
+done
+
 echo "→ Journal de l'agent"
 install -m 0640 -o "$KIOSK_USER" -g "$KIOSK_USER" /dev/null /var/log/kioskoscope-agent.log 2>/dev/null || true
 

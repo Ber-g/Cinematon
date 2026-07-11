@@ -1,6 +1,7 @@
 import type { Film, Play } from "../domain/types";
 import type { UnlockStatus } from "../unlock/UnlockAdapter";
 import { createCountdown, el, formatDuration, renderQrDataUrl } from "./dom";
+import { isKioskLocked } from "../setup/kioskLockdown";
 
 // Chaque écran renvoie un noeud + une fonction de nettoyage optionnelle (timers,
 // vidéo…). Un seul écran est monté à la fois par App.
@@ -44,13 +45,28 @@ function authorBlock(film: Film): HTMLElement {
     stillTiles(film),
   ];
   if (film.learnMoreUrl) {
-    children.push(
-      el("a", { class: "btn btn--ghost", href: film.learnMoreUrl, target: "_blank", rel: "noopener" }, [
-        "En savoir plus",
-      ]),
-    );
+    // Sur la borne verrouillée (CIN-072), ouvrir un onglet externe = évasion du kiosque.
+    // On propose un QR : le visiteur ouvre le lien sur SON téléphone, la borne reste scellée.
+    // En dev / hors kiosque, on garde le lien cliquable (pratique de test).
+    children.push(isKioskLocked() ? learnMoreQr(film.learnMoreUrl) : learnMoreLink(film.learnMoreUrl));
   }
   return el("div", { class: "author" }, children);
+}
+
+/** Lien « En savoir plus » cliquable (dev / hors kiosque). */
+function learnMoreLink(url: string): HTMLElement {
+  return el("a", { class: "btn btn--ghost", href: url, target: "_blank", rel: "noopener" }, ["En savoir plus"]);
+}
+
+/** QR « En savoir plus » (borne verrouillée) : le visiteur ouvre le lien sur son téléphone. */
+function learnMoreQr(url: string): HTMLElement {
+  const img = el("img", { class: "learn-more__qr", alt: "QR — en savoir plus", width: "132", height: "132" }) as HTMLImageElement;
+  void renderQrDataUrl(url).then((src) => (img.src = src)).catch(() => undefined);
+  return el("div", { class: "learn-more" }, [
+    el("p", { class: "learn-more__label" }, ["En savoir plus"]),
+    img,
+    el("p", { class: "learn-more__hint" }, ["Scannez avec votre téléphone"]),
+  ]);
 }
 
 // ── Écran d'accueil (idle / attract loop) ───────────────────────────────────

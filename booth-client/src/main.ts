@@ -8,6 +8,7 @@ import type { Play, Session } from "./domain/types";
 import { App } from "./ui/app";
 import { WifiManager, type WifiAdapter } from "./setup/wifi";
 import { AgentWifiAdapter, KioskAgentClient, createAgentSettings, loadKioskConfig } from "./setup/kioskAgent";
+import { enableKioskLockdown } from "./setup/kioskLockdown";
 import {
   EncryptedAccessStore,
   LocalStorageAccessJournal,
@@ -33,6 +34,9 @@ async function main(): Promise<void> {
   // Config borne au RUNTIME (jeton agent + creds device), fournie par le serveur local
   // via /kiosk-config.json — jamais dans le bundle. Absente (dev/déploiement public) → mock.
   const kioskConfig = await loadKioskConfig();
+  // Verrouillage kiosque (CIN-072) : dès qu'on tourne sur une borne réelle (agent présent),
+  // on neutralise menu contextuel / sélection / raccourcis d'évasion. Jamais en dev navigateur.
+  if (kioskConfig) enableKioskLockdown();
   const backend = new BoothBackend(kioskConfig?.device);
   let boothId = FALLBACK_BOOTH_ID;
   let organizationId = FALLBACK_ORG_ID;
