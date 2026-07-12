@@ -212,6 +212,36 @@ async function runTenantSuite(name, client, ownOrg, otherOrg) {
     assert(error != null || inserted === 0, `INSERT release par un super_user → refusé (${error ? "erreur RLS" : inserted + " inséré(s)"})`);
     if (inserted > 0) await client.from("releases").delete().eq("version", "ISO-TEST-9.9.9");
   }
+
+  // 10. Canal MAJ OS (CIN-077) : lecture org-scopée + autorité d'ÉCRITURE = global_admin only.
+  //     Un super_user VOIT l'état des patchs de son org mais ne DÉCLENCHE pas (la plateforme
+  //     décide). Cross-org : aucune fuite. (Skippe proprement si 0017 pas encore appliquée.)
+  {
+    const { data, error } = await client.from("os_update_commands").select("id, organization_id");
+    if (error && /does not exist|relation|schema cache/i.test(error.message)) {
+      assert(true, `os_update_commands : table absente (migration 0017 non appliquée) → bloc ignoré`);
+    } else {
+      assert(!error, `os_update_commands lisible sans erreur (${error?.message ?? "ok"})`);
+      const leak = (data ?? []).filter((r) => r.organization_id !== ownOrg);
+      assert(leak.length === 0, `os_update_commands : aucune fuite cross-org (${leak.length} fuite(s))`);
+
+      const probe = await client.from("os_update_commands").select("id").eq("organization_id", otherOrg);
+      assert((probe.data ?? []).length === 0, `sonde os_update_commands where org=adverse → 0 ligne`);
+
+      // Autorité : même dans SA propre org, un super_user ne peut pas créer une commande.
+      const { data: bd } = await client.from("booths").select("id").eq("organization_id", ownOrg).limit(1);
+      const boothId = bd?.[0]?.id;
+      if (boothId) {
+        const { data: ins, error: insErr } = await client
+          .from("os_update_commands")
+          .insert({ organization_id: ownOrg, booth_id: boothId, status: "pending" })
+          .select();
+        const inserted = (ins ?? []).length;
+        assert(insErr != null || inserted === 0, `INSERT commande MAJ OS par un super_user → refusé (${insErr ? "erreur RLS" : inserted + " inséré(s)"})`);
+        if (inserted > 0) await client.from("os_update_commands").delete().eq("id", ins[0].id);
+      }
+    }
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
