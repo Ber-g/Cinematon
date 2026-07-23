@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Séance privée — Kioskoscope</title>
+  <style>
+    /* Page servie au bord Cloudflare quand un visiteur SANS certificat de borne (mTLS,
+       CIN-078) frappe à kiosk.kioskoscope.com. Autonome : aucune ressource externe (CSP edge).
+       Charte reprise du site de marque : blanc / noir, une seule serif (Bodoni), motif « fil ».  */
+    :root {
+      --ink: #000000;
+      --muted: #555555;
+      --bg: #ffffff;
+      --font-serif: 'Libre Bodoni', 'Bodoni MT', Didot, 'Times New Roman', serif;
+      --font-sans: 'Open Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      padding: clamp(1.5rem, 5vw, 4rem);
+      text-align: center;
+      line-height: 1.6;
+    }
+    .eyebrow {
+      font-size: 0.72rem;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 clamp(1.5rem, 4vw, 2.5rem);
+      padding-left: 0.42em; /* compense le letter-spacing pour recentrer */
+    }
+    h1 {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: clamp(2.6rem, 9vw, 5.5rem);
+      line-height: 1.02;
+      letter-spacing: -0.01em;
+      margin: 0;
+    }
+    .wave {
+      width: clamp(120px, 30vw, 220px);
+      height: auto;
+      margin: clamp(1.4rem, 4vw, 2.2rem) auto;
+      display: block;
+      overflow: visible;
+    }
+    .wave path {
+      fill: none;
+      stroke: var(--ink);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+    }
+    .lede {
+      font-size: clamp(1rem, 2.4vw, 1.2rem);
+      max-width: 34ch;
+      margin: 0 auto;
+      color: var(--ink);
+    }
+    .wink {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: clamp(0.95rem, 2.2vw, 1.1rem);
+      color: var(--muted);
+      margin: 0.9rem auto 0;
+    }
+    footer {
+      margin-top: clamp(2.6rem, 7vw, 4.5rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      align-items: center;
+    }
+    .code {
+      font-size: 0.72rem;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0;
+    }
+    a.link {
+      font-size: 0.95rem;
+      color: var(--ink);
+      text-decoration: none;
+      border-bottom: 1px solid var(--ink);
+      padding-bottom: 2px;
+      transition: opacity 0.2s ease;
+    }
+    a.link:hover, a.link:focus-visible { opacity: 0.55; }
+    a.link:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 1px; }
+
+    /* Le « fil » se dessine une fois — clin d'œil au motif de vague du site. */
+    @media (prefers-reduced-motion: no-preference) {
+      .wave path {
+        stroke-dasharray: 640;
+        stroke-dashoffset: 640;
+        animation: draw 2.2s ease-out forwards;
+      }
+      @keyframes draw { to { stroke-dashoffset: 0; } }
+    }
+  </style>
+</head>
+<body>
+  <p class="eyebrow">Kioskoscope</p>
+
+  <h1>Séance privée.</h1>
+
+  <svg class="wave" viewBox="0 0 220 40" role="presentation" aria-hidden="true">
+    <path d="M2 20 C 20 2, 40 2, 57 20 S 92 38, 110 20 S 145 2, 163 20 S 198 38, 218 20" />
+  </svg>
+
+  <p class="lede">
+    Cette porte ne s'ouvre que pour nos cabines. La projection se passe à l'intérieur des
+    bornes&nbsp;— pas de ce côté de l'écran.
+  </p>
+  <p class="wink">Rien à voir ici. Enfin, presque&nbsp;: la sortie est juste en dessous.</p>
+
+  <footer>
+    <p class="code">Erreur 403 · Accès réservé aux bornes</p>
+    <a class="link" href="https://kioskoscope.com">Découvrir Kioskoscope →</a>
+  </footer>
+</body>
+</html>

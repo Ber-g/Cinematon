@@ -29,7 +29,11 @@ Un cert **unique par borne** → révocable individuellement (voir §5).
 1. **SSL/TLS → Client Certificates** (ou API Shield → mTLS) : **uploader `ca/fleet-ca.crt`**
    comme CA de confiance pour le mTLS.
 2. Créer une **mTLS rule** / **WAF custom rule** sur `kiosk.kioskoscope.com` :
-   « si `not cf.tls_client_auth.cert_verified` → **Block** » (ou renvoyer la page rigolote — QA à venir).
+   « si `not cf.tls_client_auth.cert_verified` → **Block** ». Pour renvoyer la **page rigolote**
+   (`kiosk/edge/mtls-blocked.html`, autonome, charte de marque) au lieu du blocage brut : soit une
+   **Custom Response** sur la règle WAF (coller le HTML, `Content-Type: text/html`, statut 403), soit
+   une **Cloudflare Custom Error Page** (403 / 1xxx) au niveau du site. La page est sans ressource
+   externe → compatible CSP edge.
 3. Vérifier : un `curl https://kiosk.kioskoscope.com` **sans** cert → bloqué ; **avec** le cert
    d'une borne (`--cert`/`--key`) → passe.
 
