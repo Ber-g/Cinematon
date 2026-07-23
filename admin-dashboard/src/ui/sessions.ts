@@ -27,13 +27,18 @@ function kpiTile(label: string, value: string, hue: string, iconPath: string): H
   ]);
 }
 
-export function sessionsPage(store: FleetStore): HTMLElement {
+// CIN-045 : `opts.boothId` filtre les séances sur une seule cabine ; `opts.embedded`
+// masque le gros titre de page quand la vue est rendue dans un onglet du hub cabine.
+export function sessionsPage(store: FleetStore, opts: { boothId?: string; embedded?: boolean } = {}): HTMLElement {
   const container = el("div", {}, [el("div", { class: "text-secondary p-3" }, ["Chargement des séances…"])]);
-  void store.sessionsList().then((rows) => container.replaceChildren(render(store, rows)));
+  void store.sessionsList().then((all) => {
+    const rows = opts.boothId ? all.filter((s) => s.boothId === opts.boothId) : all;
+    container.replaceChildren(render(store, rows, opts.embedded ?? false));
+  });
   return container;
 }
 
-function render(store: FleetStore, rows: readonly SessionRow[]): HTMLElement {
+function render(store: FleetStore, rows: readonly SessionRow[], embedded: boolean): HTMLElement {
   const cur = store.activeCurrency();
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -67,10 +72,12 @@ function render(store: FleetStore, rows: readonly SessionRow[]): HTMLElement {
   });
 
   return el("div", {}, [
-    el("div", { class: "mb-3" }, [
-      el("h2", { class: "page-title m-0" }, [t("page.sessions")]),
-      el("div", { class: "text-secondary" }, ["Séances et films joués. Les données réelles arriveront quand les Kiosks seront branchées (ici : séances seedées)."]),
-    ]),
+    embedded
+      ? el("span", {}, [])
+      : el("div", { class: "mb-3" }, [
+          el("h2", { class: "page-title m-0" }, [t("page.sessions")]),
+          el("div", { class: "text-secondary" }, ["Séances et films joués. Les données réelles arriveront quand les Kiosks seront branchées (ici : séances seedées)."]),
+        ]),
     el("div", { class: "row row-cards g-2 mb-3" }, [
       kpiTile("Séances", String(rows.length), "purple", "M8 4v16M16 4v16M4 8h16M4 16h16"),
       kpiTile("Films / séance", avgFilms, "azure", "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z"),

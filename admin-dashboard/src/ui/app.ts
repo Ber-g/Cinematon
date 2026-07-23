@@ -14,6 +14,7 @@ import { rightsPage } from "./rights";
 import { sessionsPage } from "./sessions";
 import { settingsPage } from "./settings";
 import { mapPage, mountFleetMap } from "./mapView";
+import { boothHubPage, type BoothTab } from "./booth";
 import { t, getLang, setLang, LANGS, onLangChange } from "../i18n";
 
 const THEME_KEY = "kioskoscope.admin.theme.v1";
@@ -31,7 +32,10 @@ export class App {
   private editing = false;
   private filter: FilterState | null = null;
   private sort: SortState = { key: "health", dir: "asc" };
-  private view: "overview" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" = "overview";
+  private view: "overview" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" | "booth" = "overview";
+  // CIN-045 : hub « booth-centric » — cabine sélectionnée + onglet courant du hub.
+  private boothId: string | null = null;
+  private boothTab: BoothTab = "infos";
   // CIN-044 : la carte n'est plus un menu — c'est une bascule DANS la vue d'ensemble.
   private overviewMode: "list" | "map" = "list";
   private themePref: "system" | "light" | "dark" = ((): "system" | "light" | "dark" => {
@@ -83,7 +87,9 @@ export class App {
                 ? maintenancePage(this.store, () => this.render())
                 : this.view === "settings"
                   ? settingsPage(this.store, () => this.render())
-                  : this.overview();
+                  : this.view === "booth"
+                    ? this.boothHub()
+                    : this.overview();
     this.root.replaceChildren(
       this.sidebar(),
       this.topbar(),
@@ -317,7 +323,27 @@ export class App {
   }
 
   private openDrawer(id: string): void {
-    openBoothDrawer(this.store, id, (b) => openBoothForm(this.store, b));
+    openBoothDrawer(this.store, id, (b) => openBoothForm(this.store, b), (bid) => this.openBoothHub(bid));
+  }
+
+  // CIN-045 — Hub par cabine (master-detail). Ouvert depuis le drawer (« Gérer »).
+  private openBoothHub(id: string): void {
+    this.boothId = id;
+    this.boothTab = "infos";
+    this.view = "booth";
+    this.render();
+  }
+
+  private boothHub(): HTMLElement {
+    if (!this.boothId) return this.overview();
+    return boothHubPage(
+      this.store,
+      this.boothId,
+      this.boothTab,
+      (tab) => { this.boothTab = tab; this.render(); },
+      () => { this.view = "overview"; this.boothId = null; this.render(); },
+      (b) => openBoothForm(this.store, b),
+    );
   }
 
   // ── Gridstack : montage responsive + persistance ──────────────────────────

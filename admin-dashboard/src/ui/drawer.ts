@@ -25,13 +25,19 @@ function meter(label: string, value: number, unit: string, ok: boolean): HTMLEle
   ]);
 }
 
-export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: Booth) => void): void {
+export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: Booth) => void, onManage?: (boothId: string) => void): void {
   const booth = store.boothById(boothId);
   if (!booth) return;
   // Outils de debug/shell = global_admin UNIQUEMENT (exigence sécurité V2/F7).
   const canDebug = store.isGlobalAdmin;
 
+  // CIN-045 : raccourci vers le hub « booth-centric » (ferme le drawer, ouvre la page cabine).
+  const manageBtn = onManage
+    ? el("button", { class: "btn btn-primary w-100 mb-3", type: "button" }, [icon("M9 6h11M9 12h11M9 18h11M4 6v.01M4 12v.01M4 18v.01", 18), el("span", {}, ["Gérer cette cabine"])])
+    : null;
+
   const body: HTMLElement[] = [
+    ...(manageBtn ? [manageBtn] : []),
     el("div", { class: "d-flex align-items-center flex-wrap gap-2 mb-2" }, [
       healthBadge(booth.health),
       indicatorChips(booth),
@@ -130,6 +136,10 @@ export function openBoothDrawer(store: FleetStore, boothId: string, onEdit: (b: 
 
   const delBtn = offEl.querySelector('[data-action="delete"]');
   const oc = new Offcanvas(offEl);
+  manageBtn?.addEventListener("click", () => {
+    oc.hide();
+    onManage?.(boothId);
+  });
   delBtn?.addEventListener("click", () => {
     if (confirm(`Supprimer « ${booth.label} » ? Cette action est définitive.`)) {
       store.deleteBooth(booth.id);

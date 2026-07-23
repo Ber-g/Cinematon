@@ -77,6 +77,7 @@ export interface Invitation {
 /** Séance (session) avec les films joués — menu Sessions (F9). */
 export interface SessionRow {
   readonly id: string;
+  readonly boothId: string;
   readonly boothLabel: string;
   readonly startedAt: number;
   readonly unlockMethod: string;
@@ -975,6 +976,7 @@ export class FleetStore {
     }
     return ((sess ?? []) as Array<{ id: string; booth_id: string; started_at: string; unlock_method: string; amount_cents: number | null }>).map((s) => ({
       id: s.id,
+      boothId: s.booth_id,
       boothLabel: boothLabel.get(s.booth_id) ?? "—",
       startedAt: new Date(s.started_at).getTime(),
       unlockMethod: s.unlock_method,

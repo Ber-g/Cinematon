@@ -47,8 +47,11 @@ function breakdownCard(title: string, rows: ReadonlyArray<{ label: string; cents
   return el("div", { class: "card h-100" }, [el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, [title])]), body]);
 }
 
-export function revenuePage(store: FleetStore): HTMLElement {
-  const tx = store.transactionsList();
+// CIN-045 : `opts.boothId` filtre la vue sur une seule cabine (hub par cabine) ;
+// `opts.embedded` masque le gros titre de page quand la vue est rendue dans un onglet.
+export function revenuePage(store: FleetStore, opts: { boothId?: string; embedded?: boolean } = {}): HTMLElement {
+  const { boothId, embedded = false } = opts;
+  const tx = boothId ? store.transactionsList().filter((t) => t.boothId === boothId) : store.transactionsList();
   const booths = store.visibleBooths();
   const orgs = store.organizations();
   const boothLabel = new Map(booths.map((b) => [b.id, b.label]));
@@ -112,10 +115,12 @@ export function revenuePage(store: FleetStore): HTMLElement {
         ]);
 
   return el("div", {}, [
-    el("div", { class: "mb-3" }, [
-      el("h2", { class: "page-title m-0" }, [t("page.revenue")]),
-      el("div", { class: "text-secondary" }, [store.isGlobalAdmin ? "Toutes les organisations (global admin)." : "Revenus de votre organisation.", " · Conso data LTE : reportée (phase rue)."]),
-    ]),
+    embedded
+      ? el("span", {}, [])
+      : el("div", { class: "mb-3" }, [
+          el("h2", { class: "page-title m-0" }, [t("page.revenue")]),
+          el("div", { class: "text-secondary" }, [store.isGlobalAdmin ? "Toutes les organisations (global admin)." : "Revenus de votre organisation.", " · Conso data LTE : reportée (phase rue)."]),
+        ]),
     el("div", { class: "row row-cards g-2 mb-3" }, [
       kpiTile("Revenu total", formatMoney(totalCents, viewCurrency), "teal", "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6"),
       kpiTile("Ce mois", formatMoney(monthCents, viewCurrency), "green", "M4 5h16v16H4zM4 9h16M8 3v4M16 3v4"),
@@ -123,10 +128,12 @@ export function revenuePage(store: FleetStore): HTMLElement {
       kpiTile("Transactions", String(tx.length), "purple", "M8 4v16M16 4v16M4 8h16M4 16h16"),
     ]),
     el("div", { class: "card mb-3" }, [el("div", { class: "card-body" }, [timeSeriesChart({ title: "Revenu — 30 derniers jours", points, kind: "area", hue: "var(--tblr-teal)", formatValue: (n) => formatMoney(n, viewCurrency) })])]),
-    el("div", { class: "row row-cards mb-3" }, [
-      el("div", { class: showOrgBreakdown ? "col-lg-6" : "col-12" }, [breakdownCard("Revenu par Kiosk", boothRows)]),
-      ...(showOrgBreakdown ? [el("div", { class: "col-lg-6" }, [breakdownCard("Revenu par organisation", orgRows)])] : []),
-    ]),
+    boothId
+      ? el("span", {}, [])
+      : el("div", { class: "row row-cards mb-3" }, [
+          el("div", { class: showOrgBreakdown ? "col-lg-6" : "col-12" }, [breakdownCard("Revenu par Kiosk", boothRows)]),
+          ...(showOrgBreakdown ? [el("div", { class: "col-lg-6" }, [breakdownCard("Revenu par organisation", orgRows)])] : []),
+        ]),
     el("div", { class: "card" }, [el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["Dernières transactions"])]), txTable]),
   ]);
 }
