@@ -32,6 +32,11 @@ function shortDate(iso: string): string {
 export function timeSeriesChart(opts: ChartOptions): HTMLElement {
   const pts = opts.points;
   const n = pts.length;
+  // Sans point (borne neuve, aucun historique), les libellés d'axe lisent pts[0].date →
+  // crash. On rend un état vide propre au lieu de planter le tiroir / le hub cabine.
+  if (n === 0) {
+    return el("div", { class: "text-secondary small text-center py-4" }, [opts.title ? `${opts.title} — pas encore de données` : "Pas encore de données"]);
+  }
   const maxV = Math.max(1, ...pts.map((p) => p.value));
 
   const plotW = W - PAD.left - PAD.right;

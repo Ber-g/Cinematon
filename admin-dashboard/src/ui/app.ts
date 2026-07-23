@@ -13,6 +13,7 @@ import { maintenancePage } from "./maintenance";
 import { rightsPage } from "./rights";
 import { sessionsPage } from "./sessions";
 import { settingsPage } from "./settings";
+import { boothHubPage, type HubTab } from "./boothHub";
 import { mapPage, mountFleetMap } from "./mapView";
 import { t, getLang, setLang, LANGS, onLangChange } from "../i18n";
 
@@ -31,7 +32,10 @@ export class App {
   private editing = false;
   private filter: FilterState | null = null;
   private sort: SortState = { key: "health", dir: "asc" };
-  private view: "overview" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" = "overview";
+  private view: "overview" | "media" | "revenue" | "rights" | "sessions" | "maintenance" | "settings" | "booth" = "overview";
+  // CIN-045 : hub de gestion d'une cabine (vue dédiée, scopée à une borne).
+  private selectedBoothId: string | null = null;
+  private boothTab: HubTab = "synthese";
   // CIN-044 : la carte n'est plus un menu — c'est une bascule DANS la vue d'ensemble.
   private overviewMode: "list" | "map" = "list";
   private themePref: "system" | "light" | "dark" = ((): "system" | "light" | "dark" => {
@@ -83,7 +87,9 @@ export class App {
                 ? maintenancePage(this.store, () => this.render())
                 : this.view === "settings"
                   ? settingsPage(this.store, () => this.render())
-                  : this.overview();
+                  : this.view === "booth" && this.selectedBoothId
+                    ? boothHubPage(this.store, this.selectedBoothId, () => this.setView("overview"), () => this.render(), this.boothTab, (tab) => { this.boothTab = tab; })
+                    : this.overview();
     this.root.replaceChildren(
       this.sidebar(),
       this.topbar(),
@@ -317,7 +323,15 @@ export class App {
   }
 
   private openDrawer(id: string): void {
-    openBoothDrawer(this.store, id, (b) => openBoothForm(this.store, b));
+    openBoothDrawer(this.store, id, (b) => openBoothForm(this.store, b), (boothId) => this.openBoothHub(boothId));
+  }
+
+  /** Ouvre le hub de gestion d'une cabine (CIN-045). */
+  private openBoothHub(id: string): void {
+    this.selectedBoothId = id;
+    this.boothTab = "synthese"; // nouvelle cabine → on repart de la synthèse
+    this.view = "booth";
+    this.render();
   }
 
   // ── Gridstack : montage responsive + persistance ──────────────────────────

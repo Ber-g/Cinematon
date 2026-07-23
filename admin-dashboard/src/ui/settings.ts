@@ -21,7 +21,7 @@ const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
 ];
 
 /** Rôles attribuables à un accès opérateur cabine (global_admin = plateforme, non créé ici). */
-const OPERATOR_ROLE_LABELS: Record<OperatorRole, string> = {
+export const OPERATOR_ROLE_LABELS: Record<OperatorRole, string> = {
   operator: "Opérateur",
   super_user: "Administrateur",
   global_admin: "Admin global",
@@ -436,7 +436,7 @@ const ACTION_LABELS: Record<string, string> = {
   restart: "Redémarrage",
 };
 
-function accessStatus(a: OperatorAccessRecord): { label: string; cls: string } {
+export function accessStatus(a: OperatorAccessRecord): { label: string; cls: string } {
   if (a.revoked) return { label: "Révoqué", cls: "bg-danger-lt" };
   if (a.expiresAt && Date.parse(a.expiresAt) <= Date.now()) return { label: "Expiré", cls: "bg-orange-lt" };
   return { label: "Actif", cls: "bg-green-lt" };
@@ -515,12 +515,13 @@ function accessTab(store: FleetStore, org: OrgSummary | null, canManage: boolean
   return wrap;
 }
 
-function openAccessModal(
+export function openAccessModal(
   store: FleetStore,
   org: OrgSummary,
   booths: ReadonlyArray<{ id: string; label: string }>,
   existingIds: readonly string[],
   onDone: () => void,
+  defaultBoothId?: string | null,
 ): void {
   const orgSlug = slugify(org.name);
   let generatedPin = randomPin();
@@ -538,6 +539,8 @@ function openAccessModal(
   });
   const role = el("select", { class: "form-select" }, (["operator", "super_user"] as const).map((r) => el("option", { value: r }, [OPERATOR_ROLE_LABELS[r]]))) as HTMLSelectElement;
   const scope = el("select", { class: "form-select" }, [el("option", { value: "" }, ["Toutes les Kiosks de l'organisation"]), ...booths.map((b) => el("option", { value: b.id }, [b.label]))]) as HTMLSelectElement;
+  // Depuis le hub cabine (CIN-045) : portée pré-sélectionnée sur cette cabine.
+  if (defaultBoothId && booths.some((b) => b.id === defaultBoothId)) scope.value = defaultBoothId;
   const label = el("input", { class: "form-control", type: "text", placeholder: "Note (ex. bénévole festival)", autocomplete: "off" }) as HTMLInputElement;
   const expiry = el("input", { class: "form-control", type: "date" }) as HTMLInputElement;
   const error = el("div", { class: "alert alert-danger d-none" }, []);
