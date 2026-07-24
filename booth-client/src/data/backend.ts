@@ -1,3 +1,4 @@
+import type { OrgStyle } from "@kioskoscope/domain";
 import type { Film, Play, Session } from "../domain/types";
 import type { AccessLogEntry } from "../setup/accessCache";
 import type { AccessEntry, AccessTable, OperatorRole } from "../setup/auth";
@@ -191,6 +192,34 @@ export class BoothBackend {
       return [];
     }
     return (data ?? []).map((r) => rowToFilm(r as Record<string, unknown>));
+  }
+
+  /**
+   * Style d'organisation « Mes styles » (F19). La borne LIT le style de son org (RLS device
+   * SELECT scopée `device_org()`) et le passe à `applyOrgStyle`. `null` si aucune ligne = style
+   * MAÎTRE Kioskoscope (défaut). Les colonnes jsonb reviennent déjà désérialisées.
+   */
+  async loadOrgStyle(): Promise<OrgStyle | null> {
+    if (!supabase || !this.cfg) return null;
+    const { data, error } = await supabase
+      .from("org_styles")
+      .select("palette,fonts,assets,title")
+      .eq("organization_id", this.cfg.orgId)
+      .maybeSingle();
+    if (error) {
+      console.error("[booth] chargement style d'org :", error.message);
+      return null;
+    }
+    if (!data) return null;
+    const row = data as { palette?: unknown; fonts?: unknown; assets?: unknown; title?: unknown };
+    // On ne conserve que les slots présents ; `applyOrgStyle` retombe sur le maître pour le reste.
+    const style: OrgStyle = {
+      ...(row.palette ? { palette: row.palette as NonNullable<OrgStyle["palette"]> } : {}),
+      ...(row.fonts ? { fonts: row.fonts as NonNullable<OrgStyle["fonts"]> } : {}),
+      ...(row.assets ? { assets: row.assets as NonNullable<OrgStyle["assets"]> } : {}),
+      ...(typeof row.title === "string" ? { title: row.title } : {}),
+    };
+    return style;
   }
 
   /**

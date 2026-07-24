@@ -242,6 +242,46 @@ async function runTenantSuite(name, client, ownOrg, otherOrg) {
       }
     }
   }
+
+  // 11. Style d'org « Mes styles » (F19) : un super_user écrit le style de SON org, mais JAMAIS
+  //     celui d'une autre org ; lecture cross-org = 0 fuite. (Skippe si 0018 pas appliquée.)
+  {
+    const { data, error } = await client.from("org_styles").select("organization_id, title");
+    if (error && /does not exist|relation|schema cache/i.test(error.message)) {
+      assert(true, `org_styles : table absente (migration 0018 non appliquée) → bloc ignoré`);
+    } else {
+      assert(!error, `org_styles lisible sans erreur (${error?.message ?? "ok"})`);
+      const leak = (data ?? []).filter((r) => r.organization_id !== ownOrg);
+      assert(leak.length === 0, `org_styles : aucune fuite cross-org (${leak.length} fuite(s))`);
+
+      const probe = await client.from("org_styles").select("organization_id").eq("organization_id", otherOrg);
+      assert((probe.data ?? []).length === 0, `sonde org_styles where org=adverse → 0 ligne`);
+
+      // Sécurité : écrire le style de l'org ADVERSE → refusé (super_user ≠ global_admin, autre org).
+      const { data: ins, error: insErr } = await client
+        .from("org_styles")
+        .insert({ organization_id: otherOrg, title: "ISO-INTRUS-STYLE" })
+        .select();
+      const intruded = (ins ?? []).length;
+      assert(insErr != null || intruded === 0, `INSERT org_styles dans l'org adverse → refusé (${insErr ? "erreur RLS" : intruded + " inséré(s)"})`);
+      if (intruded > 0) await client.from("org_styles").delete().eq("organization_id", otherOrg);
+
+      // Contrôle positif NON destructif : n'écrire dans sa propre org QUE si aucune ligne n'existe
+      // (sinon on écraserait un vrai style) → insert puis delete. Sinon on note le skip.
+      const own = (data ?? []).find((r) => r.organization_id === ownOrg);
+      if (!own) {
+        const { data: mine, error: myErr } = await client
+          .from("org_styles")
+          .insert({ organization_id: ownOrg, title: "ISO-SELF-STYLE" })
+          .select();
+        const okCreated = (mine ?? []).length === 1;
+        assert(!myErr && okCreated, `contrôle positif : écrire le style de SA propre org autorisé (${myErr?.message ?? "ok"})`);
+        if (okCreated) await client.from("org_styles").delete().eq("organization_id", ownOrg);
+      } else {
+        assert(true, `contrôle positif : style d'org déjà présent → écriture propre non retestée (non destructif)`);
+      }
+    }
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────

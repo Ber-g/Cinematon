@@ -34,9 +34,8 @@ async function main(): Promise<void> {
 
   // F13 — direction visuelle. La borne est « salle obscure » : thème sombre par défaut
   // (le système de tokens porte aussi clair + haute visibilité, activables via data-theme/
-  // data-contrast). Style d'org MAÎTRE pour l'instant : `applyOrgStyle()` sans argument =
-  // aucune surcharge (défauts Kioskoscope). Demain (F19), on passera le style de l'org lu
-  // via le backend — MÊME appel, zéro re-design (cf. styles/orgStyle.ts).
+  // data-contrast). Style d'org appliqué plus bas une fois le backend connu (F19) ; par
+  // défaut = maître Kioskoscope.
   document.documentElement.dataset.theme ||= "dark";
   applyOrgStyle();
 
@@ -62,6 +61,9 @@ async function main(): Promise<void> {
     const blocked = await backend.loadBlockedMedia(); // droits F15 : exclure expiré / au plafond
     const playable = films.filter((f) => !blocked.has(f.id));
     if (playable.length > 0) setCatalog(playable);
+    // F19 : style de l'org (Mes styles) → tokens CSS. Absent = maître (applyOrgStyle already
+    // appelé au boot ; ré-appliquer avec le style réel ne change rien s'il n'y en a pas).
+    applyOrgStyle((await backend.loadOrgStyle()) ?? undefined);
     sink = (snapshot) => void backend.saveSession(snapshot);
     console.info(
       `[booth] branché Supabase · org ${organizationId} · ${playable.length} film(s)` +

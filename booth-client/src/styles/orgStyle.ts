@@ -9,7 +9,7 @@
 // Aujourd'hui : `main.ts` appelle `applyOrgStyle()` sans argument → style MAÎTRE (aucune
 // surcharge). Demain : `applyOrgStyle(styleDeLOrg)` sans autre changement (même seam).
 
-import type { OrgStyle } from "@kioskoscope/domain";
+import { type OrgStyle, readableInk } from "@kioskoscope/domain";
 
 // Chaque propriété d'org → token CSS ciblé. On vise les *-base pour l'accent et le halo
 // (l'humeur les recouvre via --mood-*) ; les autres slots sont écrits directement.
@@ -56,8 +56,9 @@ export function applyOrgStyle(style?: OrgStyle): void {
     }
     // Encre de l'accent = contraste auto (WCAG) selon la luminance de l'accent — jamais
     // une décision opérateur. On écrit --color-accent-ink-base ; l'humeur peut la recouvrir.
+    // Helper hoisté dans @kioskoscope/domain (source unique cabine + dashboard).
     if (style.palette.accent) {
-      root.style.setProperty("--color-accent-ink-base", readableInkFor(style.palette.accent));
+      root.style.setProperty("--color-accent-ink-base", readableInk(style.palette.accent));
     }
   }
 
@@ -69,34 +70,4 @@ export function applyOrgStyle(style?: OrgStyle): void {
   }
   // Assets & titre (logos, image d'attente, bandeau, titre) = consommés au rendu des écrans,
   // pas des tokens CSS. Le seam les porte ; leur câblage visuel suivra avec F19.
-}
-
-/**
- * Encre lisible (foncée ou claire) sur une couleur de fond donnée, par luminance relative
- * (WCAG). Repli sûr si la couleur n'est pas un hex reconnu. Renvoie un hex de token primitif.
- */
-export function readableInkFor(bg: string): string {
-  const lum = relativeLuminance(bg);
-  // Seuil ~0.4 : au-dessus (fond clair) → encre foncée ; en dessous → encre claire.
-  return lum > 0.4 ? "#1a1206" : "#f4f2ee";
-}
-
-/** Luminance relative WCAG d'un hex (#rgb ou #rrggbb). Repli 0.5 (neutre) si non parsable. */
-function relativeLuminance(hex: string): number {
-  const rgb = parseHex(hex);
-  if (!rgb) return 0.5;
-  const [r, g, b] = rgb.map((c) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  }) as [number, number, number];
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** Parse #rgb / #rrggbb → [r,g,b] 0-255, ou null si invalide. */
-function parseHex(hex: string): [number, number, number] | null {
-  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return null;
-  let h = m[1]!;
-  if (h.length === 3) h = h[0]! + h[0]! + h[1]! + h[1]! + h[2]! + h[2]!;
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
