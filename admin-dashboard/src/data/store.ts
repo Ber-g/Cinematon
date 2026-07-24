@@ -3,7 +3,7 @@ import { MOCK_BOOTHS, MOCK_MEMBERSHIPS, MOCK_ORGS, MOCK_USERS } from "./mockFlee
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { boothToRow, mediaToRow, rowToBooth, rowToMedia, rowToMediaInstance, rowToStorageLocation, rowToTransaction, type TransactionRecord } from "./mappers";
 import { sha256Hex } from "./hash";
-import { buildAccessEntry, type OperatorRole } from "@kioskoscope/domain";
+import { buildAccessEntry, type OperatorRole, type OrgStyle, type OrgStyleAssets, type OrgStyleFonts, type OrgStylePalette } from "@kioskoscope/domain";
 
 /** Accès opérateur cabine (CIN-073) — vue back-office (jamais le PIN, seulement méta). */
 export interface OperatorAccessRecord {
@@ -217,6 +217,24 @@ const LS_LAYOUT = "kioskoscope.admin.layout.v1";
 
 type Listener = () => void;
 
+/**
+ * Ligne `org_styles` (jsonb) → `OrgStyle` du domaine. Chaque bloc est optionnel : une colonne
+ * NULL retombe sur le style maître. exactOptionalPropertyTypes → spreads conditionnels (jamais
+ * de clé posée à `undefined`).
+ */
+function rowToOrgStyle(row: Record<string, unknown>): OrgStyle {
+  const palette = (row.palette as Partial<OrgStylePalette> | null) ?? null;
+  const fonts = (row.fonts as Partial<OrgStyleFonts> | null) ?? null;
+  const assets = (row.assets as OrgStyleAssets | null) ?? null;
+  const title = (row.title as string | null) ?? null;
+  return {
+    ...(palette ? { palette } : {}),
+    ...(fonts ? { fonts } : {}),
+    ...(assets ? { assets } : {}),
+    ...(title ? { title } : {}),
+  };
+}
+
 function mockIdentityFor(userId: string): CurrentIdentity {
   const user = MOCK_USERS.find((u) => u.id === userId) ?? (MOCK_USERS[0] as User);
   if (user.isGlobalAdmin) return { user, activeOrganizationId: null, role: null };
@@ -241,6 +259,8 @@ export class FleetStore {
   private orgs: OrgSummary[] = [];
   // Feature gating (CIN-080) : entitlements par org (souscription + modules). Absent = tout ON.
   private entitlements = new Map<string, { subscriptionType: string; enabledModules: string[] }>();
+  // Styles d'org (F19, table 0018). Absent (pas de ligne) = style maître Kioskoscope.
+  private orgStyles = new Map<string, OrgStyle>();
   private identity: CurrentIdentity | null = null;
   private authed = false;
   private listeners = new Set<Listener>();
@@ -333,6 +353,13 @@ export class FleetStore {
         subscriptionType: String(e.subscription_type ?? "demo"),
         enabledModules: Array.isArray(e.enabled_modules) ? (e.enabled_modules as string[]) : [],
       });
+    }
+    // Styles d'org (F19, table 0018) : gracieux si 0018 pas encore appliquée (table absente
+    // → aucune surcharge, style maître). Une org sans ligne = maître (pas de clé dans la map).
+    this.orgStyles = new Map();
+    const { data: styles } = await supabase!.from("org_styles").select("*");
+    for (const s of (styles ?? []) as Array<Record<string, unknown>>) {
+      this.orgStyles.set(String(s.organization_id), rowToOrgStyle(s));
     }
     // Supports physiques + présence des médias (F8 : envoi batch, couverture Kiosk).
     const { data: locations } = await supabase!.from("storage_locations").select("*");
@@ -540,6 +567,47 @@ export class FleetStore {
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase.from("org_entitlements").upsert(row, { onConflict: "organization_id" });
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  // ── Styles d'organisation (F19 « Mes styles ») ──────────────────────────────
+  // Source unique cabine + dashboard : le type `OrgStyle` vient de @kioskoscope/domain.
+  // Pas de ligne = style maître Kioskoscope (aucune surcharge). Écriture RLS (0018) :
+  // super_user de l'org OU global_admin.
+
+  /** Style surchargé d'une org, ou null si elle tourne sur le style maître. */
+  orgStyleFor(orgId: string | null | undefined): OrgStyle | null {
+    return orgId ? (this.orgStyles.get(orgId) ?? null) : null;
+  }
+
+  /**
+   * Upsert du style d'une org. Le dashboard (F19 v1) possède palette/fontes/titre ; ces trois
+   * champs reflètent EXACTEMENT le patch (une valeur vide/omise → null = retour au maître pour
+   * ce slot). Les `assets` (v2, upload) ne sont pas édités ici : on préserve l'existant.
+   */
+  async upsertOrgStyle(orgId: string, patch: OrgStyle): Promise<{ ok: boolean; error?: string }> {
+    if (!supabase) return { ok: false, error: "hors ligne" };
+    const current = this.orgStyles.get(orgId);
+    const row = {
+      organization_id: orgId,
+      palette: patch.palette ?? null,
+      fonts: patch.fonts ?? null,
+      assets: patch.assets ?? current?.assets ?? null,
+      title: patch.title ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from("org_styles").upsert(row, { onConflict: "organization_id" });
+    if (error) return { ok: false, error: error.message };
+    await this.loadFromSupabase();
+    return { ok: true };
+  }
+
+  /** Réinitialise au style maître : supprime la ligne (absence de surcharge). */
+  async resetOrgStyle(orgId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!supabase) return { ok: false, error: "hors ligne" };
+    const { error } = await supabase.from("org_styles").delete().eq("organization_id", orgId);
     if (error) return { ok: false, error: error.message };
     await this.loadFromSupabase();
     return { ok: true };

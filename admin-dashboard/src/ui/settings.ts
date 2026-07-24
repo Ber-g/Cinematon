@@ -3,19 +3,21 @@ import type { FleetStore, OperatorAccessRecord, OrgMember, OrgSummary } from "..
 import type { OrgRole } from "../domain/types";
 import type { OperatorRole } from "@kioskoscope/domain";
 import { PERMISSION_MATRIX, ROLE_HINTS, ROLE_LABELS, ROLE_ORDER } from "../domain/roles";
-import { el } from "./dom";
+import { el, icon } from "./dom";
+import { orgStyleSettingsTab } from "./orgStyleSettings";
 
 // Menu Organisation (hub à onglets, patterns SaaS classiques) : Général, Membres,
-// Invitations, Rôles & permissions, Kiosks, Paiement. La gestion (écriture) est
+// Invitations, Rôles & permissions, Kiosks, Mes styles, Paiement. La gestion (écriture) est
 // réservée au super_user (aligné sur la RLS 0006) ; les autres voient en lecture.
 
-type Tab = "general" | "members" | "invites" | "roles" | "booths" | "access" | "billing";
+type Tab = "general" | "members" | "invites" | "roles" | "booths" | "styles" | "access" | "billing";
 const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
   { key: "general", label: "Général" },
   { key: "members", label: "Membres" },
   { key: "invites", label: "Invitations" },
   { key: "roles", label: "Rôles & permissions" },
   { key: "booths", label: "Kiosks" },
+  { key: "styles", label: "Mes styles" },
   { key: "access", label: "Accès opérateur" },
   { key: "billing", label: "Paiement" },
 ];
@@ -75,11 +77,19 @@ export function settingsPage(store: FleetStore, onChanged: () => void): HTMLElem
           })()
         : el("span", {}, []);
 
+    // Onglet « Mes styles » grisé + cadenas si le module personalization n'est pas accordé
+    // (upsell) — sauf pour le global_admin. Reste cliquable : le corps affiche l'upsell.
+    const stylesGated = org ? !store.hasModule(org.id, "personalization") && !store.isGlobalAdmin : false;
+    const lockPath = "M6 11V7a4 4 0 0 1 8 0v4M5 11h10a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1H5a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1z";
+
     const tabsNav = el(
       "ul",
       { class: "nav nav-tabs mb-3" },
       TABS.map((t) => {
-        const link = el("a", { class: `nav-link ${state.tab === t.key ? "active" : ""}`, href: "#" }, [t.label]);
+        const gated = t.key === "styles" && stylesGated;
+        const children: Array<Node | string> = [t.label];
+        if (gated) children.push(el("span", { class: "ms-1 text-secondary" }, [icon(lockPath, 14)]));
+        const link = el("a", { class: `nav-link ${state.tab === t.key ? "active" : ""} ${gated ? "opacity-75" : ""}`, href: "#", ...(gated ? { title: "Module non inclus dans votre offre" } : {}) }, children);
         link.addEventListener("click", (e) => {
           e.preventDefault();
           state.tab = t.key;
@@ -664,6 +674,7 @@ const tabRenderers: Record<Tab, (store: FleetStore, org: OrgSummary | null, canM
   invites: invitesTab,
   roles: () => rolesTab(),
   booths: (store, org) => boothsTab(store, org),
+  styles: (store, org, canManage) => orgStyleSettingsTab(store, org, canManage),
   access: (store, org, canManage) => accessTab(store, org, canManage),
   billing: billingTab,
 };
