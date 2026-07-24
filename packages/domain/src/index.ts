@@ -447,6 +447,47 @@ export interface OrgStyle {
   readonly title?: string;
 }
 
+// ── Contraste (WCAG) — source UNIQUE cabine + dashboard ───────────────────────
+// Le contraste texte/fond d'un style d'org est AUTOMATIQUE (jamais une décision opérateur) :
+// la cabine choisit l'encre lisible sur un accent, le dashboard prévient si un couple est sous
+// le seuil AA. Ces helpers vivent ici pour éviter toute divergence entre les apps.
+
+/** Parse #rgb / #rrggbb → [r,g,b] 0-255, ou null si invalide. */
+export function parseHexColor(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  let h = m[1]!;
+  if (h.length === 3) h = h[0]! + h[0]! + h[1]! + h[1]! + h[2]! + h[2]!;
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+/** Luminance relative WCAG d'un hex. Repli 0.5 (neutre) si non parsable. */
+export function relativeLuminance(hex: string): number {
+  const rgb = parseHexColor(hex);
+  if (!rgb) return 0.5;
+  const [r, g, b] = rgb.map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Ratio de contraste WCAG entre deux couleurs (1 → 21). AA texte normal = ≥ 4.5. */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const [hi, lo] = la >= lb ? [la, lb] : [lb, la];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * Encre lisible (foncée/claire) sur un fond donné, par luminance. `dark`/`light` = les deux
+ * encres candidates (défauts = encre projecteur foncée / papier clair). Seuil ~0.4.
+ */
+export function readableInk(bg: string, dark = "#1a1206", light = "#f4f2ee"): string {
+  return relativeLuminance(bg) > 0.4 ? dark : light;
+}
+
 export async function verifyOperator(
   table: AccessTable,
   identifier: string,
