@@ -88,7 +88,7 @@ export class App {
                 : this.view === "settings"
                   ? settingsPage(this.store, () => this.render())
                   : this.view === "booth" && this.selectedBoothId
-                    ? boothHubPage(this.store, this.selectedBoothId, () => this.setView("overview"), () => this.render(), this.boothTab, (tab) => { this.boothTab = tab; })
+                    ? boothHubPage(this.store, this.selectedBoothId, () => this.setView("overview"), () => this.render(), this.boothTab, (tab) => { this.boothTab = tab; }, () => this.setView("media"))
                     : this.overview();
     this.root.replaceChildren(
       this.sidebar(),
