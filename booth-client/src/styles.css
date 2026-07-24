@@ -14,6 +14,8 @@
   --radius: 16px;
   --tap: 64px; /* hauteur mini des cibles tactiles */
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  /* F14 : anneau de focus. Provisoire — deviendra un token sémantique en F13. */
+  --focus-ring: #8ecbff;
 }
 
 * {
@@ -145,6 +147,24 @@ h2 {
 
 .btn:active {
   transform: scale(0.97);
+}
+
+/* ── F14 : focus visible (clavier / boutons physiques) ───────────────────────
+   L'anneau de focus (FocusRing) pose .is-focused sur l'élément actif. Ring net et
+   contrasté, cohérent quel que soit le composant (bouton, chip, carte). Le focus
+   natif au clavier (:focus-visible) reçoit le même traitement, sans double contour. */
+.is-focused,
+.btn:focus-visible,
+.chip:focus-visible,
+.filmcard:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* On neutralise le contour natif quand notre anneau gère déjà le focus (évite le
+   double liseré au clic pointeur qui déplace ensuite le focus DOM). */
+.is-focused:focus {
+  outline: 3px solid var(--focus-ring);
 }
 
 .btn--primary {
