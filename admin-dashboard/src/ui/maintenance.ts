@@ -2,6 +2,7 @@ import { Modal } from "bootstrap";
 import type { FleetStore, Release, UpdatesReport } from "../data/store";
 import { el, relativeTime } from "./dom";
 import { t } from "../i18n";
+import { boothLabelEl } from "./components";
 
 // Menu Maintenance (Phase 4 / F10) : versions logicielles (releases), déploiement vers
 // des Kiosks, état par Kiosk (version courante, dernier contact, fenêtre de MAJ,
@@ -25,14 +26,14 @@ const OS_STATUS: Record<string, { label: string; cls: string }> = {
   failed: { label: "Échec", cls: "bg-red-lt" },
 };
 
-export function maintenancePage(store: FleetStore, onChanged: () => void): HTMLElement {
+export function maintenancePage(store: FleetStore, onChanged: () => void, onOpenBooth?: (id: string) => void): HTMLElement {
   const container = el("div", {}, [el("div", { class: "text-secondary p-3" }, ["Chargement…"])]);
-  const reload = (): void => container.replaceChildren(render(store, store.updatesReport(), () => { onChanged(); reload(); }));
+  const reload = (): void => container.replaceChildren(render(store, store.updatesReport(), () => { onChanged(); reload(); }, onOpenBooth));
   reload();
   return container;
 }
 
-function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTMLElement {
+function render(store: FleetStore, rep: UpdatesReport, reload: () => void, onOpenBooth?: (id: string) => void): HTMLElement {
   const orgId = store.current?.activeOrganizationId ?? store.organizations()[0]?.id ?? "";
 
   // ── Versions (releases) ──
@@ -97,7 +98,7 @@ function render(store: FleetStore, rep: UpdatesReport, reload: () => void): HTML
     }
 
     return el("tr", {}, [
-      el("td", { class: "fw-bold" }, [row.boothLabel]),
+      el("td", { class: "fw-bold" }, [boothLabelEl(row.boothLabel, onOpenBooth ? () => onOpenBooth(row.boothId) : undefined)]),
       el("td", {}, [el("span", { class: "badge bg-blue-lt" }, [row.currentVersion])]),
       el("td", { class: "text-secondary text-nowrap" }, [relativeTime(row.lastHeartbeat)]),
       el("td", {}, [hourSel]),

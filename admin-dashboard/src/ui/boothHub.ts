@@ -13,6 +13,20 @@ import { openAccessModal, accessStatus, OPERATOR_ROLE_LABELS } from "./settings"
 
 export type HubTab = "synthese" | "maj" | "acces" | "fiche" | "medias" | "revenus";
 
+/**
+ * Menu de gestion d'une cabine — SOURCE UNIQUE (ordre + libellés). Consommé par le hub (onglets)
+ * ET par le tiroir (raccourcis deep-link) → cohérence garantie : mêmes libellés à tous les niveaux
+ * de profondeur. Chaque icône est un chemin SVG (24×24) passé à `icon()`.
+ */
+export const HUB_TABS: ReadonlyArray<{ key: HubTab; label: string; icon: string }> = [
+  { key: "synthese", label: "Synthèse", icon: "M4 19h16M4 15l4 -4l3 3l5 -6" },
+  { key: "medias", label: "Médias", icon: "M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z" },
+  { key: "revenus", label: "Revenus", icon: "M12 3v18M8 7h6a2 2 0 0 1 0 4h-4a2 2 0 0 0 0 4h6" },
+  { key: "maj", label: "MAJ", icon: "M12 3a9 9 0 1 0 9 9M12 3v6h6" },
+  { key: "acces", label: "Accès", icon: "M8 11V7a4 4 0 0 1 8 0v4M6 11h12v9H6z" },
+  { key: "fiche", label: "Fiche & lieu", icon: "M12 21c-4 -4 -6 -7 -6 -10a6 6 0 0 1 12 0c0 3 -2 6 -6 10zM12 11a2 2 0 1 0 0 -4a2 2 0 0 0 0 4z" },
+];
+
 const DEPLOY_STATUS: Record<string, { label: string; cls: string }> = {
   pending: { label: "En attente", cls: "bg-secondary-lt" },
   scheduled: { label: "Planifiée", cls: "bg-azure-lt" },
@@ -73,14 +87,7 @@ export function boothHubPage(
     });
     return b;
   };
-  const tabs = el("div", { class: "btn-group", role: "group" }, [
-    tabBtn("synthese", "Synthèse"),
-    tabBtn("medias", "Médias"),
-    tabBtn("revenus", "Revenus"),
-    tabBtn("maj", "MAJ"),
-    tabBtn("acces", "Accès"),
-    tabBtn("fiche", "Fiche & lieu"),
-  ]);
+  const tabs = el("div", { class: "btn-group", role: "group" }, HUB_TABS.map((t) => tabBtn(t.key, t.label)));
 
   renderContent();
 

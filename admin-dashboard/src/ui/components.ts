@@ -5,6 +5,18 @@ import { t } from "../i18n";
 
 // Composants d'affichage réutilisables (statut, connexion, KPI, cartes, tableau).
 
+/**
+ * Libellé de cabine : bouton-lien cliquable (→ ouvre la cabine, MÊME entrée que partout) si
+ * `onClick` fourni, sinon simple texte. Point d'entrée cabine unifié (cohérence nav @design) —
+ * réutilisé par Revenus, Séances, Maintenance, la carte, etc.
+ */
+export function boothLabelEl(label: string, onClick?: () => void): HTMLElement {
+  if (!onClick) return el("span", {}, [label]);
+  const b = el("button", { class: "btn btn-link p-0 fw-bold text-reset text-start", type: "button" }, [label]);
+  b.addEventListener("click", onClick);
+  return b;
+}
+
 /** Badge de santé : couleur + ICÔNE + LIBELLÉ (jamais couleur seule — a11y). */
 export function healthBadge(status: HealthStatus): HTMLElement {
   const m = healthMeta(status);
