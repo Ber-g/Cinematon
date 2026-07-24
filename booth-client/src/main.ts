@@ -1,6 +1,7 @@
 import "./styles.css";
 import { applyOrgStyle } from "./styles/orgStyle";
 import { setBrand } from "./domain/brand";
+import { initAccessibility } from "./setup/accessibility";
 import { RuleBasedRecommender } from "./reco/RuleBasedRecommender";
 import { SessionManager } from "./session/SessionManager";
 import { MockUnlockAdapter } from "./unlock/MockUnlockAdapter";
@@ -39,6 +40,8 @@ async function main(): Promise<void> {
   // défaut = maître Kioskoscope.
   document.documentElement.dataset.theme ||= "dark";
   applyOrgStyle();
+  // A11y : restaure le mode haute visibilité si l'opérateur l'a déjà activé (data-contrast).
+  initAccessibility();
 
   // Config borne au RUNTIME (jeton agent + creds device), fournie par le serveur local
   // via /kiosk-config.json — jamais dans le bundle. Absente (dev/déploiement public) → mock.

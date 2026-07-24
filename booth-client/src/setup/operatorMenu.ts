@@ -10,6 +10,7 @@
 // ici ce sont des hooks injectés (stubs en dev).
 
 import { el } from "../ui/dom";
+import { isHighContrast, setHighContrast } from "./accessibility";
 import type { AccessJournal, AccessStore } from "./accessCache";
 import { verifyOperator, type OperatorRole, type VerifyResult } from "./auth";
 import type { WifiAdapter, WifiNetwork } from "./wifi";
@@ -435,9 +436,30 @@ export class OperatorMenu {
       );
     });
 
+    // Accessibilité : mode haute visibilité (F13). Réglage du LIEU, mémorisé, appliqué à toute
+    // l'app (contrastes renforcés + focus élargi). Interrupteur explicite, pas un slider.
+    const hvBtn = el("button", { class: "op-btn", type: "button" }, []) as HTMLButtonElement;
+    const syncHv = (): void => {
+      const on = isHighContrast();
+      hvBtn.textContent = on ? "Activée" : "Désactivée";
+      hvBtn.classList.toggle("op-btn--primary", on);
+      hvBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    };
+    hvBtn.addEventListener("click", () => {
+      this.bumpInactivity();
+      setHighContrast(!isHighContrast());
+      syncHv();
+    });
+    syncHv();
+    const highContrast = el("div", { class: "op-field" }, [
+      el("label", { class: "op-label" }, ["Haute visibilité", el("span", { class: "op-slider-val" }, ["contraste renforcé"])]),
+      hvBtn,
+    ]);
+
     return el("div", {}, [
       slider("Volume", () => this.deps.settings.getVolume(), (v) => this.deps.settings.setVolume(v)),
       slider("Luminosité", () => this.deps.settings.getBrightness(), (v) => this.deps.settings.setBrightness(v)),
+      highContrast,
       el("hr", { class: "op-sep" }),
       restartBtn,
       confirmSlot,
