@@ -24,8 +24,9 @@ kiosk/pki/certs/
 /BACKLOG.md
 # Runbook d'actions humaines (infra Supabase/Cloudflare) — local, non public.
 /ACTIONS-BERANGER.md
-# Prompt de délégation à l'agent parallèle — local.
+# Prompts de délégation aux agents parallèles — locaux.
 /AGENT-PROMPT-CIN045.md
+/AGENT-PROMPT-F19-DASHBOARD.md
 
 # Logs
 logs
