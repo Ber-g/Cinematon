@@ -146,6 +146,24 @@ h2 {
   margin: 0.5rem 0 0;
 }
 
+/* Logo d'org (F19) : remplace le titre typographique. Contraint pour ne pas dominer l'écran. */
+.brand__logo {
+  max-width: min(70vw, 520px);
+  max-height: 28vh;
+  object-fit: contain;
+}
+
+/* Mention non supprimable sur marque d'org — discrète, jamais en avant. */
+.brand__powered {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin: 0.75rem 0 0;
+}
+
 /* ── Boutons ──────────────────────────────────────────────────────────────── */
 .btn {
   font-family: var(--font-ui);

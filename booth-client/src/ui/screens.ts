@@ -1,5 +1,6 @@
 import type { Film, Play } from "../domain/types";
 import type { UnlockStatus } from "../unlock/UnlockAdapter";
+import { getBrand, isCustomBrand } from "../domain/brand";
 import { createCountdown, el, formatDuration, renderQrDataUrl } from "./dom";
 import { isKioskLocked } from "../setup/kioskLockdown";
 import { FocusRing } from "../input/focusRing";
@@ -80,14 +81,17 @@ export function idleScreen(onStart: () => void): ScreenResult {
     "Toucher pour commencer",
   ]);
   start.addEventListener("click", onStart);
+  // F19 : titre/accroche viennent de la marque de l'org (repli maître). Logo v2 = si présent,
+  // il remplace le titre typographique ; sinon le titre reste. « powered by » non supprimable.
+  const brand = getBrand();
+  const heading = brand.logoUrl
+    ? el("img", { class: "brand__logo", src: brand.logoUrl, alt: brand.title })
+    : el("h1", { class: "brand__title" }, [brand.title]);
+  const brandChildren = [heading, el("p", { class: "brand__tagline" }, [brand.tagline])];
+  // Mention non supprimable, uniquement sur une marque d'org (redondante si marque = maître).
+  if (isCustomBrand()) brandChildren.push(el("p", { class: "brand__powered" }, ["propulsé par Kioskoscope"]));
   return {
-    node: screen("idle", [
-      el("div", { class: "brand" }, [
-        el("h1", { class: "brand__title" }, ["KIOSKOSCOPE"]),
-        el("p", { class: "brand__tagline" }, ["Votre séance de cinéma, rien qu'à vous."]),
-      ]),
-      start,
-    ]),
+    node: screen("idle", [el("div", { class: "brand" }, brandChildren), start]),
     handler: new FocusRing({ items: [start] }),
   };
 }

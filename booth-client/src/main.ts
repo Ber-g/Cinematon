@@ -1,5 +1,6 @@
 import "./styles.css";
 import { applyOrgStyle } from "./styles/orgStyle";
+import { setBrand } from "./domain/brand";
 import { RuleBasedRecommender } from "./reco/RuleBasedRecommender";
 import { SessionManager } from "./session/SessionManager";
 import { MockUnlockAdapter } from "./unlock/MockUnlockAdapter";
@@ -61,9 +62,18 @@ async function main(): Promise<void> {
     const blocked = await backend.loadBlockedMedia(); // droits F15 : exclure expiré / au plafond
     const playable = films.filter((f) => !blocked.has(f.id));
     if (playable.length > 0) setCatalog(playable);
-    // F19 : style de l'org (Mes styles) → tokens CSS. Absent = maître (applyOrgStyle already
-    // appelé au boot ; ré-appliquer avec le style réel ne change rien s'il n'y en a pas).
-    applyOrgStyle((await backend.loadOrgStyle()) ?? undefined);
+    // F19 : style de l'org (Mes styles). La palette/les fontes → tokens CSS (applyOrgStyle) ;
+    // le titre + les assets → contenu de marque (setBrand, lu par l'écran d'attente). Absent =
+    // maître (déjà appliqué au boot).
+    const orgStyle = await backend.loadOrgStyle();
+    applyOrgStyle(orgStyle ?? undefined);
+    if (orgStyle) {
+      setBrand({
+        ...(orgStyle.title ? { title: orgStyle.title } : {}),
+        idleImageUrl: orgStyle.assets?.idleImage ?? null,
+        logoUrl: orgStyle.assets?.logoDark ?? orgStyle.assets?.logoLight ?? null,
+      });
+    }
     sink = (snapshot) => void backend.saveSession(snapshot);
     console.info(
       `[booth] branché Supabase · org ${organizationId} · ${playable.length} film(s)` +
