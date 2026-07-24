@@ -133,6 +133,15 @@ h2 {
   font-family: var(--font-ui);
 }
 
+/* ── Image d'attente d'org (F19 v2) ──────────────────────────────────────────
+   Image plein cadre en fond de l'écran d'accueil + voile sombre pour garder titre/bouton
+   lisibles quelle que soit l'image (contraste jamais laissé au hasard). */
+.screen--idle.has-idle-image {
+  background-image: linear-gradient(rgba(6, 6, 8, 0.55), rgba(6, 6, 8, 0.72)), var(--idle-image);
+  background-size: cover;
+  background-position: center;
+}
+
 /* ── Marque (idle) ────────────────────────────────────────────────────────── */
 .brand__title {
   font-size: clamp(3rem, 12vw, 7rem);

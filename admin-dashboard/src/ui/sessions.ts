@@ -1,6 +1,7 @@
 import type { FleetStore, SessionRow } from "../data/store";
 import { el, formatMoney, icon } from "./dom";
 import { t } from "../i18n";
+import { boothLabelEl } from "./components";
 
 // Menu Sessions (F9, 2e tranche) : liste des séances (Kiosk, date, méthode de
 // déverrouillage, films joués, montant) + quelques KPI. Données réelles : `sessions`
@@ -27,15 +28,18 @@ function kpiTile(label: string, value: string, hue: string, iconPath: string): H
   ]);
 }
 
-export function sessionsPage(store: FleetStore): HTMLElement {
+export function sessionsPage(store: FleetStore, onOpenBooth?: (id: string) => void): HTMLElement {
   const container = el("div", {}, [el("div", { class: "text-secondary p-3" }, ["Chargement des séances…"])]);
-  void store.sessionsList().then((rows) => container.replaceChildren(render(store, rows)));
+  void store.sessionsList().then((rows) => container.replaceChildren(render(store, rows, onOpenBooth)));
   return container;
 }
 
-function render(store: FleetStore, rows: readonly SessionRow[]): HTMLElement {
+function render(store: FleetStore, rows: readonly SessionRow[], onOpenBooth?: (id: string) => void): HTMLElement {
   const cur = store.activeCurrency();
   const todayStr = new Date().toISOString().slice(0, 10);
+  // SessionRow ne porte que le libellé → on retrouve l'id via le store pour ouvrir la cabine
+  // (entrée cohérente). Libellés de cabine uniques en pratique ; sinon repli texte.
+  const idByLabel = new Map(store.visibleBooths().map((b) => [b.label, b.id]));
 
   const totalFilms = rows.reduce((n, s) => n + s.films.length, 0);
   const avgFilms = rows.length > 0 ? (totalFilms / rows.length).toFixed(1) : "0";
@@ -59,7 +63,7 @@ function render(store: FleetStore, rows: readonly SessionRow[]): HTMLElement {
       : el("span", { class: "text-secondary" }, ["—"]);
     return el("tr", {}, [
       el("td", { class: "text-secondary text-nowrap" }, [new Date(s.startedAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })]),
-      el("td", {}, [s.boothLabel]),
+      el("td", {}, [boothLabelEl(s.boothLabel, onOpenBooth && idByLabel.has(s.boothLabel) ? () => onOpenBooth(idByLabel.get(s.boothLabel)!) : undefined)]),
       el("td", {}, [el("span", { class: "badge bg-secondary-lt" }, [METHOD_LABELS[s.unlockMethod] ?? s.unlockMethod])]),
       el("td", { style: "min-width:220px" }, [filmList]),
       el("td", { class: "text-end text-nowrap" }, [s.amountCents != null ? formatMoney(s.amountCents, cur) : "—"]),

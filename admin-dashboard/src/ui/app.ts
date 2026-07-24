@@ -78,13 +78,13 @@ export class App {
       this.view === "media"
         ? mediaPage(this.store, () => this.render())
         : this.view === "revenue"
-          ? revenuePage(this.store)
+          ? revenuePage(this.store, (id) => this.openDrawer(id))
           : this.view === "rights"
             ? (this.store.activeHasModule("rights") ? rightsPage(this.store, () => this.render()) : this.overview())
             : this.view === "sessions"
-              ? sessionsPage(this.store)
+              ? sessionsPage(this.store, (id) => this.openDrawer(id))
               : this.view === "maintenance"
-                ? maintenancePage(this.store, () => this.render())
+                ? maintenancePage(this.store, () => this.render(), (id) => this.openDrawer(id))
                 : this.view === "settings"
                   ? settingsPage(this.store, () => this.render())
                   : this.view === "booth" && this.selectedBoothId
@@ -101,7 +101,7 @@ export class App {
     );
     if (this.view === "overview") {
       this.mountGrid();
-      if (this.overviewMode === "map") mountFleetMap(this.store);
+      if (this.overviewMode === "map") mountFleetMap(this.store, (id) => this.openDrawer(id));
     }
   }
 
@@ -323,13 +323,13 @@ export class App {
   }
 
   private openDrawer(id: string): void {
-    openBoothDrawer(this.store, id, (b) => openBoothForm(this.store, b), (boothId) => this.openBoothHub(boothId));
+    openBoothDrawer(this.store, id, (b) => openBoothForm(this.store, b), (boothId, tab) => this.openBoothHub(boothId, tab));
   }
 
-  /** Ouvre le hub de gestion d'une cabine (CIN-045). */
-  private openBoothHub(id: string): void {
+  /** Ouvre le hub de gestion d'une cabine (CIN-045), éventuellement sur un onglet précis (deep-link tiroir). */
+  private openBoothHub(id: string, tab: HubTab = "synthese"): void {
     this.selectedBoothId = id;
-    this.boothTab = "synthese"; // nouvelle cabine → on repart de la synthèse
+    this.boothTab = tab;
     this.view = "booth";
     this.render();
   }

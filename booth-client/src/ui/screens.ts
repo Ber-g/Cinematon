@@ -19,6 +19,13 @@ export interface ScreenResult {
 const screen = (name: string, children: Array<Node | string>): HTMLElement =>
   el("section", { class: `screen screen--${name}` }, children);
 
+// Assainit une URL avant de l'injecter dans un `url("…")` CSS : retire guillemets, parenthèses,
+// antislash et sauts de ligne qui pourraient casser/échapper la déclaration. L'URL vient du style
+// d'org (super_user), mais on ne fait jamais confiance à une chaîne pour construire du CSS.
+function cssUrl(url: string): string {
+  return url.replace(/["'()\\\s]/g, (c) => encodeURIComponent(c));
+}
+
 // Bande de vignettes « en savoir plus ». Utilise les vraies images si le film en
 // a ; sinon génère des placeholders dégradés déterministes (déclinés par titre).
 function stillTiles(film: Film, count = 3): HTMLElement {
@@ -90,10 +97,14 @@ export function idleScreen(onStart: () => void): ScreenResult {
   const brandChildren = [heading, el("p", { class: "brand__tagline" }, [brand.tagline])];
   // Mention non supprimable, uniquement sur une marque d'org (redondante si marque = maître).
   if (isCustomBrand()) brandChildren.push(el("p", { class: "brand__powered" }, ["propulsé par Kioskoscope"]));
-  return {
-    node: screen("idle", [el("div", { class: "brand" }, brandChildren), start]),
-    handler: new FocusRing({ items: [start] }),
-  };
+  const node = screen("idle", [el("div", { class: "brand" }, brandChildren), start]);
+  // F19 v2 : image d'attente de l'org en fond (assets). Un voile sombre (via .has-idle-image)
+  // garde le titre/bouton lisibles quelle que soit l'image. Absente → fond de marque par défaut.
+  if (brand.idleImageUrl) {
+    node.classList.add("has-idle-image");
+    node.style.setProperty("--idle-image", `url("${cssUrl(brand.idleImageUrl)}")`);
+  }
+  return { node, handler: new FocusRing({ items: [start] }) };
 }
 
 // ── Déverrouillage en cours ──────────────────────────────────────────────────

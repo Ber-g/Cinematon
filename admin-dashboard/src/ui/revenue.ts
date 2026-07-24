@@ -2,6 +2,7 @@ import type { FleetStore } from "../data/store";
 import { el, formatMoney, icon } from "./dom";
 import { t } from "../i18n";
 import { timeSeriesChart } from "./chart";
+import { boothLabelEl } from "./components";
 
 // Vue Revenus (F9). Agrège les transactions (scopées RLS) : KPI, évolution 30 j,
 // répartition par Kiosk (et par organisation pour un global_admin), liste des
@@ -24,7 +25,7 @@ function kpiTile(label: string, value: string, hue: string, iconPath: string): H
 }
 
 /** Table de répartition « libellé → montant » avec barre de proportion. */
-function breakdownCard(title: string, rows: ReadonlyArray<{ label: string; cents: number; currency: string }>): HTMLElement {
+function breakdownCard(title: string, rows: ReadonlyArray<{ label: string; cents: number; currency: string; onClick?: () => void }>): HTMLElement {
   const max = Math.max(1, ...rows.map((r) => r.cents));
   const body =
     rows.length === 0
@@ -33,7 +34,7 @@ function breakdownCard(title: string, rows: ReadonlyArray<{ label: string; cents
           el("table", { class: "table table-vcenter card-table" }, [
             el("tbody", {}, rows.map((r) =>
               el("tr", {}, [
-                el("td", { class: "fw-bold" }, [r.label]),
+                el("td", { class: "fw-bold" }, [boothLabelEl(r.label, r.onClick)]),
                 el("td", { class: "text-end text-nowrap" }, [formatMoney(r.cents, r.currency)]),
                 el("td", { class: "w-50" }, [
                   el("div", { class: "progress progress-sm" }, [
@@ -47,7 +48,7 @@ function breakdownCard(title: string, rows: ReadonlyArray<{ label: string; cents
   return el("div", { class: "card h-100" }, [el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, [title])]), body]);
 }
 
-export function revenuePage(store: FleetStore): HTMLElement {
+export function revenuePage(store: FleetStore, onOpenBooth?: (id: string) => void): HTMLElement {
   const tx = store.transactionsList();
   const booths = store.visibleBooths();
   const orgs = store.organizations();
@@ -81,7 +82,7 @@ export function revenuePage(store: FleetStore): HTMLElement {
   const byBooth = new Map<string, number>();
   for (const t of tx) byBooth.set(t.boothId, (byBooth.get(t.boothId) ?? 0) + t.amountCents);
   const boothRows = [...byBooth.entries()]
-    .map(([id, cents]) => ({ label: boothLabel.get(id) ?? "—", cents, currency: viewCurrency }))
+    .map(([id, cents]) => ({ label: boothLabel.get(id) ?? "—", cents, currency: viewCurrency, ...(onOpenBooth ? { onClick: () => onOpenBooth(id) } : {}) }))
     .sort((a, b) => b.cents - a.cents);
 
   // Répartition par organisation (utile seulement pour un global_admin multi-org).
@@ -103,7 +104,7 @@ export function revenuePage(store: FleetStore): HTMLElement {
             el("tbody", {}, recent.map((t) =>
               el("tr", {}, [
                 el("td", { class: "text-secondary text-nowrap" }, [new Date(t.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })]),
-                el("td", {}, [boothLabel.get(t.boothId) ?? "—"]),
+                el("td", {}, [boothLabelEl(boothLabel.get(t.boothId) ?? "—", onOpenBooth ? () => onOpenBooth(t.boothId) : undefined)]),
                 el("td", { class: "text-end fw-bold text-nowrap" }, [formatMoney(t.amountCents, t.currency)]),
                 el("td", {}, [el("span", { class: "badge bg-secondary-lt" }, [t.provider])]),
               ]),

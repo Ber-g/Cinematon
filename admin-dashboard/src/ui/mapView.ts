@@ -35,8 +35,12 @@ export function mapPage(store: FleetStore): HTMLElement {
   ]);
 }
 
-/** Init Leaflet APRÈS que le conteneur soit dans le DOM (appelé par App après render). */
-export function mountFleetMap(store: FleetStore): void {
+/**
+ * Init Leaflet APRÈS que le conteneur soit dans le DOM (appelé par App après render).
+ * `onOpen` (optionnel) : ouvrir la cabine depuis son marqueur → entrée cohérente avec le reste
+ * du dashboard (même tiroir que partout). Sans lui, le popup reste informatif (rétro-compatible).
+ */
+export function mountFleetMap(store: FleetStore, onOpen?: (id: string) => void): void {
   const container = document.getElementById("fleet-map");
   if (!container) return;
   if (fleetMap) { fleetMap.remove(); fleetMap = null; }
@@ -52,13 +56,18 @@ export function mountFleetMap(store: FleetStore): void {
     const color = HEALTH_HEX[b.health] ?? "#626976";
     const marker = L.circleMarker([b.gpsLat as number, b.gpsLng as number], { radius: 9, color, fillColor: color, fillOpacity: 0.75, weight: 2 }).addTo(map);
     const lines = [b.label, b.venueType, b.address || b.location, healthMeta(b.health).label].filter((x) => x);
-    marker.bindPopup(lines.map((x) => escapeHtml(String(x))).join("<br>"));
+    // Popup en ÉLÉMENT (pas string) → un bouton « Gérer cette cabine » cliquable qui ouvre le tiroir.
+    const popup = el("div", { class: "map-popup" }, [
+      el("div", {}, lines.map((x, i) => el(i === 0 ? "strong" : "div", { class: i === 0 ? "" : "text-secondary small" }, [String(x)]))),
+    ]);
+    if (onOpen) {
+      const manage = el("button", { class: "btn btn-sm btn-primary w-100 mt-2", type: "button" }, ["Gérer cette cabine"]);
+      manage.addEventListener("click", () => onOpen(b.id));
+      popup.append(manage);
+    }
+    marker.bindPopup(popup);
     pts.push([b.gpsLat as number, b.gpsLng as number]);
   }
   if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.3));
   setTimeout(() => map.invalidateSize(), 0);
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
