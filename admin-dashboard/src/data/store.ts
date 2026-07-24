@@ -235,6 +235,23 @@ function rowToOrgStyle(row: Record<string, unknown>): OrgStyle {
   };
 }
 
+/**
+ * Type d'asset de marque uploadable (F19 v2). La valeur EST le segment de chemin storage
+ * (`{orgId}/{kind}.webp`, bucket public `org-assets`). Contrat fixé par la migration 0019.
+ */
+export type OrgAssetKind = "logo-light" | "logo-dark" | "idle" | "banner";
+
+/** Brouillon mutable du bloc `assets` figé du domaine (exactOptionalPropertyTypes). */
+type OrgAssetsDraft = { -readonly [K in keyof OrgStyleAssets]?: string };
+
+/** Correspondance kind storage → champ `assets` du domaine (`OrgStyleAssets`). */
+const ORG_ASSET_FIELD: Record<OrgAssetKind, keyof OrgStyleAssets> = {
+  "logo-light": "logoLight",
+  "logo-dark": "logoDark",
+  idle: "idleImage",
+  banner: "banner",
+};
+
 function mockIdentityFor(userId: string): CurrentIdentity {
   const user = MOCK_USERS.find((u) => u.id === userId) ?? (MOCK_USERS[0] as User);
   if (user.isGlobalAdmin) return { user, activeOrganizationId: null, role: null };
@@ -611,6 +628,55 @@ export class FleetStore {
     if (error) return { ok: false, error: error.message };
     await this.loadFromSupabase();
     return { ok: true };
+  }
+
+  // ── Assets de marque (F19 v2, bucket PUBLIC `org-assets`, migration 0019) ─────
+  // Chemin storage : `{orgId}/{kind}.webp`. Écriture RLS = super_user de l'org ; lecture
+  // publique (getPublicUrl). Le blob reçu est DÉJÀ recadré + compressé WebP côté UI. On stocke
+  // l'URL publique dans le bloc `assets` de `org_styles` (merge : les autres assets sont préservés).
+  // Même patron d'upload que les médias (`supabase.storage.from(...).upload`).
+
+  /**
+   * Téléverse un asset de marque puis enregistre son URL publique dans `org_styles.assets`.
+   * `upsert:true` écrase l'objet au même chemin → l'URL publique est stable, on la suffixe donc
+   * d'une version (`?v=`) pour invalider le cache navigateur/CDN après remplacement.
+   */
+  async uploadOrgAsset(orgId: string, kind: OrgAssetKind, blob: Blob): Promise<{ ok: boolean; url?: string; error?: string }> {
+    if (!supabase) return { ok: false, error: "hors ligne" };
+    const path = `${orgId}/${kind}.webp`;
+    const up = await supabase.storage.from("org-assets").upload(path, blob, { upsert: true, contentType: "image/webp" });
+    if (up.error) return { ok: false, error: `Téléversement échoué : ${up.error.message}` };
+    const { data: pub } = supabase.storage.from("org-assets").getPublicUrl(path);
+    const url = `${pub.publicUrl}?v=${Date.now()}`;
+    const draft: OrgAssetsDraft = { ...(this.orgStyles.get(orgId)?.assets ?? {}) };
+    draft[ORG_ASSET_FIELD[kind]] = url;
+    const res = await this.upsertOrgStyleWithAssets(orgId, draft);
+    if (!res.ok) return { ok: false, ...(res.error ? { error: res.error } : {}) };
+    return { ok: true, url };
+  }
+
+  /**
+   * Retire un asset de marque : supprime l'objet storage puis efface le champ correspondant
+   * dans `org_styles.assets` (les autres assets sont préservés).
+   */
+  async removeOrgAsset(orgId: string, kind: OrgAssetKind): Promise<{ ok: boolean; error?: string }> {
+    if (!supabase) return { ok: false, error: "hors ligne" };
+    const path = `${orgId}/${kind}.webp`;
+    const { error } = await supabase.storage.from("org-assets").remove([path]);
+    if (error) return { ok: false, error: `Suppression échouée : ${error.message}` };
+    const draft: OrgAssetsDraft = { ...(this.orgStyles.get(orgId)?.assets ?? {}) };
+    delete draft[ORG_ASSET_FIELD[kind]];
+    return this.upsertOrgStyleWithAssets(orgId, draft);
+  }
+
+  /**
+   * Écrit un nouveau bloc `assets` en PRÉSERVANT palette/fontes/titre courants (contrairement à
+   * `upsertOrgStyle`, dont le contrat v1 remet ces champs au patch fourni). Réservé aux assets.
+   */
+  private async upsertOrgStyleWithAssets(orgId: string, assets: OrgAssetsDraft): Promise<{ ok: boolean; error?: string }> {
+    const current = this.orgStyles.get(orgId) ?? {};
+    const patch: OrgStyle = { ...current, assets };
+    return this.upsertOrgStyle(orgId, patch);
   }
 
   // ── Gestion d'organisation (menu Organisation — RBAC, invitations, paiement) ─

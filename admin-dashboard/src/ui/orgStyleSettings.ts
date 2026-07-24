@@ -9,13 +9,14 @@
 // Kioskoscope » est NON supprimable dans l'aperçu — elle l'est aussi côté cabine.
 
 import { contrastRatio, parseHexColor, readableInk } from "@kioskoscope/domain";
-import type { OrgStyle, OrgStyleFonts, OrgStylePalette } from "@kioskoscope/domain";
-import type { FleetStore, OrgSummary } from "../data/store";
+import type { OrgStyle, OrgStyleAssets, OrgStyleFonts, OrgStylePalette } from "@kioskoscope/domain";
+import type { FleetStore, OrgAssetKind, OrgSummary } from "../data/store";
 import { el, icon } from "./dom";
 
 /** Brouillons éditables (mutables, cordes) alignés sur la forme figée du domaine. */
 type PaletteDraft = { -readonly [K in keyof OrgStylePalette]?: string };
 type FontsDraft = { -readonly [K in keyof OrgStyleFonts]?: string };
+type AssetsDraft = { -readonly [K in keyof OrgStyleAssets]?: string };
 
 // Valeurs du style MAÎTRE Kioskoscope (miroir des tokens cabine, thème sombre). Servent de
 // repli pour l'aperçu et de placeholder « héritée » des champs. Une modification du maître
@@ -63,6 +64,87 @@ const CONTRAST_PAIRS: ReadonlyArray<{ ink: keyof OrgStylePalette; bg: keyof OrgS
 
 const AA_THRESHOLD = 4.5;
 
+// ── Assets de marque (F19 v2) ─────────────────────────────────────────────────
+// 4 visuels : logo clair, logo sombre, image d'attente, bandeau. Chacun est recadré au ratio
+// cible (center-crop canvas natif — aucune dépendance externe) puis compressé en WebP avant
+// upload. `ratio` null = pas de recadrage (logo), seulement un plafond de hauteur.
+type AssetSlot = {
+  readonly kind: OrgAssetKind;
+  readonly field: keyof OrgStyleAssets;
+  readonly label: string;
+  readonly hint: string;
+  readonly ratio: number | null; // largeur/hauteur cible ; null = ratio libre (logos)
+  readonly maxH: number; // hauteur de sortie maximale (px) — borne le poids et évite l'upscale abusif
+  readonly darkPreview: boolean; // aperçu sur fond sombre (logo destiné aux fonds sombres)
+};
+
+const ASSET_SLOTS: ReadonlyArray<AssetSlot> = [
+  { kind: "logo-light", field: "logoLight", label: "Logo — version claire", hint: "Logo posé sur fonds clairs (PNG/SVG transparent conseillé). Ratio libre, hauteur normalisée.", ratio: null, maxH: 240, darkPreview: false },
+  { kind: "logo-dark", field: "logoDark", label: "Logo — version sombre", hint: "Logo posé sur fonds sombres (les cabines sont sombres par défaut). Ratio libre, hauteur normalisée.", ratio: null, maxH: 240, darkPreview: true },
+  { kind: "idle", field: "idleImage", label: "Image d'attente", hint: "Visuel plein écran de l'écran de veille. Recadré au format 16:9.", ratio: 16 / 9, maxH: 1080, darkPreview: true },
+  { kind: "banner", field: "banner", label: "Bandeau", hint: "Bandeau large (en-tête). Recadré au format ~4:1.", ratio: 4 / 1, maxH: 400, darkPreview: true },
+];
+
+const MAX_INPUT_BYTES = 20 * 1024 * 1024; // 20 Mo — garde-fou avant décodage
+const WEBP_RECOMPRESS_THRESHOLD = 500 * 1024; // au-delà : ré-encodage plus agressif (q 0.85)
+
+/**
+ * Recadre (center-crop au ratio cible) puis compresse une image en WebP via canvas natif.
+ * Encodage haute qualité (0.92) par défaut ; ré-encodage à 0.85 UNIQUEMENT si le résultat
+ * dépasse 500 Ko. Lève une erreur au message humain si l'image est illisible/non supportée.
+ */
+async function toWebpAsset(file: File, ratio: number | null, maxH: number): Promise<Blob> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    throw new Error("Image illisible ou format non pris en charge.");
+  }
+  try {
+    const sw = bitmap.width;
+    const sh = bitmap.height;
+    if (!sw || !sh) throw new Error("Image aux dimensions invalides.");
+
+    // Zone source (recadrage centré) — pleine image si ratio libre.
+    let sx = 0;
+    let sy = 0;
+    let cropW = sw;
+    let cropH = sh;
+    if (ratio !== null) {
+      if (sw / sh > ratio) {
+        cropW = Math.round(sh * ratio);
+        sx = Math.round((sw - cropW) / 2);
+      } else {
+        cropH = Math.round(sw / ratio);
+        sy = Math.round((sh - cropH) / 2);
+      }
+    }
+
+    const outH = Math.min(maxH, cropH);
+    const outW = ratio !== null ? Math.round(outH * ratio) : Math.round((cropW * outH) / cropH);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, outW);
+    canvas.height = Math.max(1, outH);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas indisponible sur ce navigateur.");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
+
+    const encode = (q: number): Promise<Blob | null> =>
+      new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/webp", q));
+    let blob = await encode(0.92);
+    if (!blob) throw new Error("Encodage WebP non pris en charge par ce navigateur.");
+    if (blob.size > WEBP_RECOMPRESS_THRESHOLD) {
+      const smaller = await encode(0.85);
+      if (smaller) blob = smaller;
+    }
+    return blob;
+  } finally {
+    bitmap.close();
+  }
+}
+
 /** #rgb / #rrggbb → #rrggbb minuscule (format exigé par <input type=color>). Vide si invalide. */
 function normHex(hex: string): string {
   const rgb = parseHexColor(hex);
@@ -103,6 +185,7 @@ function editor(store: FleetStore, org: OrgSummary, canManage: boolean, rebuild:
   const existing = store.orgStyleFor(org.id);
   const palette: PaletteDraft = { ...(existing?.palette ?? {}) };
   const fonts: FontsDraft = { ...(existing?.fonts ?? {}) };
+  const assets: AssetsDraft = { ...(existing?.assets ?? {}) };
   let title = existing?.title ?? "";
   const dis = canManage ? {} : { disabled: "true" };
 
@@ -206,6 +289,116 @@ function editor(store: FleetStore, org: OrgSummary, canManage: boolean, rebuild:
     ]);
   };
 
+  // ── Champs asset (upload : recadrage + WebP → storage) ──────────────────────
+  const assetField = (slot: AssetSlot): HTMLElement => {
+    const status = el("div", { class: "small text-secondary mt-1" }, []);
+    const setStatus = (cls: string, msg: string): void => {
+      status.className = `small mt-1 ${cls}`;
+      status.textContent = msg;
+    };
+
+    const previewBg = slot.darkPreview ? "#17171b" : "#f4f2ee";
+    const preview = el("div", {
+      style: `display:flex;align-items:center;justify-content:center;min-height:5.5rem;max-height:9rem;padding:.5rem;border-radius:.5rem;border:1px solid var(--tblr-border-color);background:${previewBg};overflow:hidden`,
+    }, []);
+
+    const fileInput = el("input", { type: "file", class: "form-control", accept: "image/*", ...dis }) as HTMLInputElement;
+    const removeBtn = el("button", { class: "btn btn-outline-danger btn-sm", type: "button", ...dis }, ["Retirer"]);
+
+    const renderPreview = (): void => {
+      const url = assets[slot.field];
+      if (url) {
+        const img = el("img", { src: url, alt: slot.label, style: "max-height:8rem;max-width:100%;object-fit:contain" });
+        preview.replaceChildren(img);
+        removeBtn.style.display = canManage ? "" : "none";
+      } else {
+        preview.replaceChildren(el("div", { class: "text-secondary small fst-italic text-center" }, ["Aucun visuel — l'écran cabine utilise le visuel maître Kioskoscope."]));
+        removeBtn.style.display = "none";
+      }
+    };
+
+    const lock = (locked: boolean): void => {
+      if (!canManage) return;
+      if (locked) {
+        fileInput.setAttribute("disabled", "true");
+        removeBtn.setAttribute("disabled", "true");
+      } else {
+        fileInput.removeAttribute("disabled");
+        removeBtn.removeAttribute("disabled");
+      }
+    };
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        setStatus("text-danger", "Fichier refusé : choisissez une image.");
+        fileInput.value = "";
+        return;
+      }
+      if (file.size > MAX_INPUT_BYTES) {
+        setStatus("text-danger", "Image trop lourde (20 Mo maximum avant traitement).");
+        fileInput.value = "";
+        return;
+      }
+      setStatus("text-secondary", "Préparation de l'image…");
+      lock(true);
+      void (async () => {
+        let blob: Blob;
+        try {
+          blob = await toWebpAsset(file, slot.ratio, slot.maxH);
+        } catch (e) {
+          setStatus("text-danger", e instanceof Error ? e.message : "Traitement de l'image impossible.");
+          fileInput.value = "";
+          lock(false);
+          return;
+        }
+        setStatus("text-secondary", "Envoi en cours…");
+        const res = await store.uploadOrgAsset(org.id, slot.kind, blob);
+        fileInput.value = "";
+        lock(false);
+        if (res.ok && res.url) {
+          assets[slot.field] = res.url;
+          renderPreview();
+          setStatus("text-green", "Visuel enregistré ✓");
+        } else {
+          setStatus("text-danger", res.error ?? "Échec du téléversement.");
+        }
+      })();
+    });
+
+    removeBtn.addEventListener("click", () => {
+      if (!confirm(`Retirer « ${slot.label} » ? Vos cabines reviendront au visuel maître Kioskoscope.`)) return;
+      setStatus("text-secondary", "Suppression…");
+      lock(true);
+      void store.removeOrgAsset(org.id, slot.kind).then((res) => {
+        lock(false);
+        if (res.ok) {
+          delete assets[slot.field];
+          renderPreview();
+          setStatus("text-secondary", "Visuel retiré.");
+        } else {
+          setStatus("text-danger", res.error ?? "Échec de la suppression.");
+        }
+      });
+    });
+
+    renderPreview();
+
+    return el("div", { class: "col-md-6 mb-3" }, [
+      el("label", { class: "form-label" }, [slot.label]),
+      preview,
+      canManage
+        ? el("div", { class: "d-flex align-items-start gap-2 mt-2" }, [
+            el("div", { class: "flex-fill" }, [fileInput]),
+            removeBtn,
+          ])
+        : el("span", {}, []),
+      el("div", { class: "form-hint" }, [slot.hint]),
+      status,
+    ]);
+  };
+
   // ── Titre ───────────────────────────────────────────────────────────────────
   const titleInput = el("input", { type: "text", class: "form-control", value: title, placeholder: `${MASTER_TITLE} (maître)`, maxlength: "60", autocomplete: "off", ...dis }) as HTMLInputElement;
   titleInput.addEventListener("input", () => {
@@ -264,6 +457,10 @@ function editor(store: FleetStore, org: OrgSummary, canManage: boolean, rebuild:
       el("hr", {}, []),
       el("h3", { class: "card-title" }, ["Titre de marque"]),
       el("div", { class: "mb-2" }, [titleInput, el("div", { class: "form-hint" }, ["Affiché sur l'écran d'attente des cabines."])]),
+      el("hr", {}, []),
+      el("h3", { class: "card-title" }, ["Logos & images"]),
+      el("p", { class: "text-secondary small" }, ["Vos visuels de marque. Chaque image est recadrée et compressée automatiquement (WebP) avant envoi. Un emplacement laissé vide conserve le visuel maître Kioskoscope. La mention « propulsé par Kioskoscope » reste affichée."]),
+      el("div", { class: "row" }, ASSET_SLOTS.map(assetField)),
       canManage
         ? el("div", { class: "d-flex align-items-center gap-3 mt-3 flex-wrap" }, [save, reset, status])
         : el("div", { class: "alert alert-secondary mt-3 mb-0" }, ["Lecture seule — seul un super-utilisateur de l'organisation peut modifier le style."]),
