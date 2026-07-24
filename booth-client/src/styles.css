@@ -1,22 +1,11 @@
 /* Kioskoscope booth-client — parti pris : salle obscure. Fond profond, un halo
-   chaud, typo large, cibles tactiles généreuses (kiosque). Un écran à la fois. */
+   chaud, typo large, cibles tactiles généreuses (kiosque). Un écran à la fois.
 
-:root {
-  --bg: #0a0a0c;
-  --bg-halo: #16121f;
-  --surface: #17171b;
-  --surface-raised: #202027;
-  --text: #f4f2ee;
-  --text-muted: #a9a6a0;
-  --accent: #e8b45a; /* ambre projecteur */
-  --accent-ink: #1a1206;
-  --line: #2a2a31;
-  --radius: 16px;
-  --tap: 64px; /* hauteur mini des cibles tactiles */
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  /* F14 : anneau de focus. Provisoire — deviendra un token sémantique en F13. */
-  --focus-ring: #8ecbff;
-}
+   F13 : les couleurs/fontes/formes viennent du système de tokens (tokens.css). Ce fichier
+   ne consomme QUE des tokens sémantiques (ou leurs alias legacy) — aucune couleur en dur
+   côté structure. Direction « Cinéma spatial 70s » : ambre projecteur (chaud) + lueur d'écran
+   CRT (froid), grain discret, halos doux. */
+@import "./styles/tokens.css";
 
 * {
   box-sizing: border-box;
@@ -29,9 +18,9 @@ body {
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Georgia", "Iowan Old Style", "Times New Roman", serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
@@ -45,8 +34,33 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(1200px 800px at 50% -10%, var(--bg-halo), transparent 60%);
-  transition: opacity 0.6s var(--ease);
+  background: radial-gradient(1200px 800px at 50% -10%, var(--color-bg-halo), transparent 60%);
+  transition: opacity var(--motion-slow) var(--ease);
+}
+
+/* Grain CRT signature (F13) : voile de scanlines très discret, statique (0 coût runtime,
+   pas d'animation → sûr sur borne modeste). Posé au-dessus du halo, sous le contenu.
+   Retiré si l'utilisateur préfère moins d'effets. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.015) 0,
+    rgba(255, 255, 255, 0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    display: none;
+  }
 }
 
 #app {
@@ -88,6 +102,7 @@ h1,
 h2,
 h3 {
   margin: 0;
+  font-family: var(--font-display);
   font-weight: 600;
   line-height: 1.1;
 }
@@ -108,14 +123,14 @@ h2 {
   letter-spacing: 0.25em;
   font-size: 0.8rem;
   color: var(--accent);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   margin: 0;
 }
 
 .fineprint {
   color: var(--text-muted);
   font-size: 0.85rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 /* ── Marque (idle) ────────────────────────────────────────────────────────── */
@@ -133,7 +148,7 @@ h2 {
 
 /* ── Boutons ──────────────────────────────────────────────────────────────── */
 .btn {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-weight: 600;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -157,14 +172,14 @@ h2 {
 .btn:focus-visible,
 .chip:focus-visible,
 .filmcard:focus-visible {
-  outline: 3px solid var(--focus-ring);
+  outline: var(--focus-width) solid var(--focus-ring);
   outline-offset: 3px;
 }
 
 /* On neutralise le contour natif quand notre anneau gère déjà le focus (évite le
    double liseré au clic pointeur qui déplace ensuite le focus DOM). */
 .is-focused:focus {
-  outline: 3px solid var(--focus-ring);
+  outline: var(--focus-width) solid var(--focus-ring);
 }
 
 .btn--primary {
@@ -218,7 +233,7 @@ h2 {
 }
 
 .group__label {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -234,7 +249,7 @@ h2 {
 }
 
 .chip {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 1.05rem;
   min-height: 56px;
   padding: 0 1.4rem;
@@ -259,7 +274,7 @@ h2 {
 
 .hero__meta {
   color: var(--text-muted);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   margin: 0.5rem 0 0;
 }
 
@@ -292,7 +307,7 @@ h2 {
 }
 
 .filmcard__meta {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   color: var(--text-muted);
 }
@@ -322,7 +337,7 @@ h2 {
 }
 
 .sim-badge {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.75rem;
   letter-spacing: 0.15em;
   color: var(--accent);
@@ -373,7 +388,7 @@ h2 {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 .recap__index {
@@ -510,7 +525,7 @@ h2 {
 }
 
 .still__label {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   color: rgba(255, 255, 255, 0.75);
@@ -521,7 +536,7 @@ h2 {
 /* ── Compte à rebours (après-film) ───────────────────────────────────────── */
 .countdown {
   width: min(420px, 80%);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 .countdown__row {
@@ -599,8 +614,8 @@ h2 {
   justify-content: center;
   padding: 24px;
   background: rgba(5, 5, 8, 0.82);
-  backdrop-filter: blur(6px);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  backdrop-filter: blur(var(--surface-blur));
+  font-family: var(--font-ui);
 }
 
 .op-card {

@@ -1,4 +1,5 @@
 import "./styles.css";
+import { applyOrgStyle } from "./styles/orgStyle";
 import { RuleBasedRecommender } from "./reco/RuleBasedRecommender";
 import { SessionManager } from "./session/SessionManager";
 import { MockUnlockAdapter } from "./unlock/MockUnlockAdapter";
@@ -30,6 +31,14 @@ const BOOTH_VERSION = "0.3.0-proto"; // version logicielle de la Kiosk (remonté
 async function main(): Promise<void> {
   const root = document.getElementById("app");
   if (!root) throw new Error("Élément #app introuvable");
+
+  // F13 — direction visuelle. La borne est « salle obscure » : thème sombre par défaut
+  // (le système de tokens porte aussi clair + haute visibilité, activables via data-theme/
+  // data-contrast). Style d'org MAÎTRE pour l'instant : `applyOrgStyle()` sans argument =
+  // aucune surcharge (défauts Kioskoscope). Demain (F19), on passera le style de l'org lu
+  // via le backend — MÊME appel, zéro re-design (cf. styles/orgStyle.ts).
+  document.documentElement.dataset.theme ||= "dark";
+  applyOrgStyle();
 
   // Config borne au RUNTIME (jeton agent + creds device), fournie par le serveur local
   // via /kiosk-config.json — jamais dans le bundle. Absente (dev/déploiement public) → mock.

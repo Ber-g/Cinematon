@@ -1,6 +1,10 @@
-// Thème couleur par humeur. Applique des variables CSS sur la racine du document ;
-// le parcours ne connaît que applyMoodTheme/resetMoodTheme — la palette vit ici.
-// Les animations complexes viendront se greffer sur ces mêmes variables.
+// Thème couleur par humeur. Écrit les tokens sémantiques d'humeur (--mood-*) EN INLINE sur
+// la racine ; le parcours ne connaît que applyMoodTheme/resetMoodTheme — la palette vit ici.
+//
+// F13 : l'humeur est le NIVEAU LE PLUS FORT de la précédence (maître < org < humeur). Elle
+// n'écrit QUE l'accent et le halo, via --mood-accent / --mood-accent-ink / --mood-halo, que
+// la chaîne var() des tokens (tokens.css) consulte en priorité. Le reset RETIRE ces variables
+// → l'accent retombe sur le style d'org (ou maître), sans valeur codée en dur.
 
 import type { CanonicalMood } from "@kioskoscope/domain";
 
@@ -40,17 +44,26 @@ export function paletteForMood(mood: string | null): MoodPalette {
   return (MOOD_PALETTES as Record<string, MoodPalette>)[mood] ?? DEFAULT_PALETTE;
 }
 
-/** Applique la palette d'une humeur (transition gérée en CSS sur :root). */
+/** Applique l'accent d'une humeur (transition gérée en CSS). `null` = retour au neutre. */
 export function applyMoodTheme(mood: string | null): void {
+  // Humeur nulle = accueil : on retire les surcharges → l'accent retombe sur org/maître.
+  if (mood === null) {
+    resetMoodTheme();
+    return;
+  }
   const p = paletteForMood(mood);
   const root = document.documentElement;
-  root.style.setProperty("--accent", p.accent);
-  root.style.setProperty("--accent-ink", p.accentInk);
-  root.style.setProperty("--bg-halo", p.halo);
-  root.dataset.mood = mood ?? "";
+  root.style.setProperty("--mood-accent", p.accent);
+  root.style.setProperty("--mood-accent-ink", p.accentInk);
+  root.style.setProperty("--mood-halo", p.halo);
+  root.dataset.mood = mood;
 }
 
-/** Revient à la palette neutre (retour à l'accueil). */
+/** Revient à l'accent neutre (org/maître) en retirant les surcharges d'humeur. */
 export function resetMoodTheme(): void {
-  applyMoodTheme(null);
+  const root = document.documentElement;
+  root.style.removeProperty("--mood-accent");
+  root.style.removeProperty("--mood-accent-ink");
+  root.style.removeProperty("--mood-halo");
+  root.dataset.mood = "";
 }

@@ -394,6 +394,59 @@ export async function buildAccessEntry(params: {
  * sans le bon PIN, on renvoie toujours « invalid » — pas d'énumération des
  * identifiants ni de leur statut.
  */
+// ── F19 — Style d'organisation (« Mes styles ») ──────────────────────────────
+// Contrat de personnalisation qu'une org (client, super_user) POSE et que la cabine
+// CONSOMME (elle n'écrit rien). Le super-admin (global_admin) peut le borner ou le
+// réinitialiser au style maître (F20 : « reset » = absence de surcharge). Forme figée =
+// 7 slots couleur + fontes + assets. **Source unique cabine + dashboard : ne pas dupliquer.**
+// La précédence de rendu côté cabine est : maître Kioskoscope < ce style d'org < humeur runtime.
+
+/** 7 slots de couleur : 3 dominantes + 2 secondaires + 2 textes (cf. F19). */
+export interface OrgStylePalette {
+  /** Dominante 1 — fond profond (salle obscure). */
+  readonly bg: string;
+  /** Dominante 2 — surface (cartes, panneaux). */
+  readonly surface: string;
+  /** Dominante 3 — surface surélevée (boutons neutres, éléments actifs). */
+  readonly surfaceRaised: string;
+  /** Secondaire 1 — accent chaud : actions, sélection (ambre projecteur par défaut). */
+  readonly accent: string;
+  /** Secondaire 2 — accent froid : lueur d'écran, focus (CRT par défaut). */
+  readonly accent2: string;
+  /** Texte 1 — corps lisible. */
+  readonly text: string;
+  /** Texte 2 — mis en valeur (titres, chiffres). */
+  readonly textEmphasis: string;
+}
+
+/** Piles de fontes (chaînes CSS `font-family`). Titre / corps / utilitaire (UI, data). */
+export interface OrgStyleFonts {
+  readonly display: string;
+  readonly body: string;
+  readonly ui: string;
+}
+
+/** Assets de marque. URLs (ou data:) — light + dark, image d'attente, bandeau. */
+export interface OrgStyleAssets {
+  readonly logoLight?: string;
+  readonly logoDark?: string;
+  readonly idleImage?: string;
+  readonly banner?: string;
+}
+
+/**
+ * Style d'une organisation. Tous les champs sont OPTIONNELS et partiels : un slot absent
+ * retombe sur le style maître (Kioskoscope). La mention « powered by Kioskoscope » reste
+ * NON supprimable côté rendu, quel que soit ce style.
+ */
+export interface OrgStyle {
+  readonly palette?: Partial<OrgStylePalette>;
+  readonly fonts?: Partial<OrgStyleFonts>;
+  readonly assets?: OrgStyleAssets;
+  /** Titre de marque affiché (écran d'attente). */
+  readonly title?: string;
+}
+
 export async function verifyOperator(
   table: AccessTable,
   identifier: string,

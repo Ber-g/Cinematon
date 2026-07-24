@@ -1,0 +1,161 @@
+/* Kioskoscope — Système de tokens (F13, hooks F19).
+   ┌ PRIMITIVE ─ échelle brute (jamais consommée directement par un composant).
+   ├ SÉMANTIQUE ─ ce que lisent les composants (calqué sur le modèle F19 : 7 slots
+   │              couleur, fontes, focus, motion). Nommage sémantique, pas présentationnel.
+   └ THÈMES ─ sombre (défaut « salle obscure »), clair, haute visibilité.
+
+   Précédence des accents (implémentée par chaîne var()) :
+     maître Kioskoscope (ce fichier)  <  style d'org F19 (--*-base inline, cf. orgStyle.ts)
+                                       <  accent d'humeur runtime (--mood-* inline, cf. moodTheme.ts)
+   Seuls l'accent et le halo suivent l'humeur ; le reste de la palette est piloté maître/org/thème. */
+
+/* ── PRIMITIVE ─────────────────────────────────────────────────────────────── */
+:root {
+  /* Encres (salle obscure) */
+  --ko-black: #060608;
+  --ko-ink-950: #0a0a0c;
+  --ko-ink-900: #16121f; /* halo chaud par défaut */
+  --ko-ink-850: #17171b;
+  --ko-ink-800: #202027;
+  --ko-ink-700: #2a2a31;
+  --ko-ink-600: #3a3a44;
+
+  /* Papiers (thème clair / textes sur fond sombre) */
+  --ko-paper-50: #f4f2ee;
+  --ko-paper-100: #e9e6df;
+  --ko-paper-200: #d9d6cf;
+  --ko-paper-400: #a9a6a0;
+  --ko-paper-600: #6b6862;
+
+  /* Ampoule de projecteur (accent chaud) + lueur d'écran CRT (accent froid) */
+  --ko-amber-400: #e8b45a;
+  --ko-amber-300: #f0c778;
+  --ko-amber-ink: #1a1206;
+  --ko-cyan-300: #8ecbff;
+  --ko-cyan-200: #b6e0ff;
+  --ko-cyan-ink: #04121f;
+
+  /* Signaux */
+  --ko-danger: #e5544b;
+  --ko-success: #7bd88f;
+
+  /* Formes, rythme, mouvement */
+  --ko-radius-sm: 12px;
+  --ko-radius: 16px;
+  --ko-radius-pill: 999px;
+  --ko-tap: 64px;
+  --ko-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ko-motion-fast: 0.15s;
+  --ko-motion-med: 0.4s;
+  --ko-motion-slow: 0.6s;
+
+  /* Fontes : éditorial chaud (cinéma) pour la marque/le corps, géométrique système
+     pour l'UI utilitaire. Piles sûres (kiosque hors-ligne, pas de fonte externe / CSP). */
+  --ko-font-editorial: "Georgia", "Iowan Old Style", "Times New Roman", serif;
+  --ko-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ── SÉMANTIQUE (défaut = thème sombre) ────────────────────────────────────── */
+:root,
+:root[data-theme="dark"] {
+  /* Valeurs « -base » : surchargeables par le style d'org (inline) ; l'humeur passe
+     par --mood-* consulté en priorité dans la chaîne var() ci-dessous. */
+  --color-accent-base: var(--ko-amber-400);
+  --color-accent-ink-base: var(--ko-amber-ink);
+  --color-bg-halo-base: var(--ko-ink-900);
+
+  /* Dominantes */
+  --color-bg: var(--ko-ink-950);
+  --color-surface: var(--ko-ink-850);
+  --color-surface-raised: var(--ko-ink-800);
+  --color-line: var(--ko-ink-700);
+
+  /* Textes */
+  --color-text: var(--ko-paper-50);
+  --color-text-emphasis: #ffffff;
+  --color-text-muted: var(--ko-paper-400);
+
+  /* Accents — chaîne de précédence : humeur > org > maître/thème */
+  --color-accent: var(--mood-accent, var(--color-accent-base));
+  --color-accent-ink: var(--mood-accent-ink, var(--color-accent-ink-base));
+  --color-accent-2: var(--ko-cyan-300);
+  --color-accent-2-ink: var(--ko-cyan-ink);
+  --color-bg-halo: var(--mood-halo, var(--color-bg-halo-base));
+
+  /* Signaux */
+  --color-danger: var(--ko-danger);
+  --color-success: var(--ko-success);
+
+  /* Focus (F14) : accent froid = lueur d'écran, fort contraste sur fond sombre. */
+  --focus-ring: var(--color-accent-2);
+  --focus-width: 3px;
+
+  /* Fontes sémantiques */
+  --font-display: var(--ko-font-editorial);
+  --font-body: var(--ko-font-editorial);
+  --font-ui: var(--ko-font-ui);
+
+  /* Formes / mouvement sémantiques */
+  --radius: var(--ko-radius);
+  --radius-sm: var(--ko-radius-sm);
+  --radius-pill: var(--ko-radius-pill);
+  --tap: var(--ko-tap);
+  --ease: var(--ko-ease);
+  --motion-fast: var(--ko-motion-fast);
+  --motion-med: var(--ko-motion-med);
+  --motion-slow: var(--ko-motion-slow);
+
+  /* Flou de surface (glassmorphism) — désactivé par défaut ; activé si le matériel suit
+     (voir @supports plus bas). Sur borne modeste, surface opaque = repli sûr. */
+  --surface-blur: 0px;
+
+  /* ── Alias legacy (transition F13→F19) ────────────────────────────────────
+     styles.css historique lit ces noms ; ils pointent vers les tokens sémantiques.
+     À retirer quand tous les composants consomment directement --color-*. */
+  --bg: var(--color-bg);
+  --bg-halo: var(--color-bg-halo);
+  --surface: var(--color-surface);
+  --surface-raised: var(--color-surface-raised);
+  --line: var(--color-line);
+  --text: var(--color-text);
+  --text-muted: var(--color-text-muted);
+  --accent: var(--color-accent);
+  --accent-ink: var(--color-accent-ink);
+}
+
+/* ── THÈME CLAIR (disponible ; la borne reste sombre par défaut = salle obscure) ── */
+:root[data-theme="light"] {
+  --color-accent-base: #b3801f; /* ambre assombri → contraste AA sur fond clair */
+  --color-accent-ink-base: var(--ko-paper-50);
+  --color-bg-halo-base: #efe9dc;
+
+  --color-bg: var(--ko-paper-50);
+  --color-surface: #ffffff;
+  --color-surface-raised: var(--ko-paper-100);
+  --color-line: var(--ko-paper-200);
+
+  --color-text: #1a1a1f;
+  --color-text-emphasis: #000000;
+  --color-text-muted: var(--ko-paper-600);
+
+  --color-accent-2: #1f6fb2; /* cyan assombri pour contraste sur clair */
+  --focus-ring: var(--color-accent-2);
+}
+
+/* ── MODE HAUTE VISIBILITÉ (orthogonal : se pose sur sombre OU clair) ──────────
+   Renforce lignes/contrastes et élargit le focus. Accessibilité, pas décoration. */
+:root[data-contrast="high"] {
+  --color-line: color-mix(in srgb, var(--color-text) 55%, transparent);
+  --color-text-muted: var(--color-text);
+  --focus-width: 5px;
+}
+
+/* Flou de surface seulement si le navigateur (et donc a priori le matériel) le supporte
+   ET si l'utilisateur n'a pas demandé moins d'effets. Sinon : 0px (surface opaque). */
+@supports (backdrop-filter: blur(1px)) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root {
+      --surface-blur: 6px;
+    }
+  }
+}
