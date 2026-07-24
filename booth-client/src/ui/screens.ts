@@ -2,12 +2,17 @@ import type { Film, Play } from "../domain/types";
 import type { UnlockStatus } from "../unlock/UnlockAdapter";
 import { createCountdown, el, formatDuration, renderQrDataUrl } from "./dom";
 import { isKioskLocked } from "../setup/kioskLockdown";
+import { FocusRing } from "../input/focusRing";
+import type { Intent, IntentHandler } from "../input/intents";
 
 // Chaque écran renvoie un noeud + une fonction de nettoyage optionnelle (timers,
-// vidéo…). Un seul écran est monté à la fois par App.
+// vidéo…) + son handler d'intentions (F14 : modèle de focus / contrôles média).
+// Un seul écran est monté à la fois par App, qui branche `handler` à l'InputController.
 export interface ScreenResult {
   readonly node: HTMLElement;
   readonly dispose?: () => void;
+  /** Handler d'intentions de l'écran (navigation au focus, contrôles média…). */
+  readonly handler?: IntentHandler;
 }
 
 const screen = (name: string, children: Array<Node | string>): HTMLElement =>
@@ -83,6 +88,7 @@ export function idleScreen(onStart: () => void): ScreenResult {
       ]),
       start,
     ]),
+    handler: new FocusRing({ items: [start] }),
   };
 }
 
@@ -97,6 +103,7 @@ export function unlockingScreen(onCancel: () => void): ScreenResult {
       el("p", { class: "muted" }, ["Suivez les instructions à l'écran."]),
       cancel,
     ]),
+    handler: new FocusRing({ items: [cancel], onBack: onCancel }),
   };
 }
 
@@ -126,6 +133,7 @@ export function unlockFallbackScreen(status: UnlockStatus, onRetry: () => void):
       el("p", { class: "muted" }, [m.body]),
       retry,
     ]),
+    handler: new FocusRing({ items: [retry], onBack: onRetry }),
   };
 }
 
@@ -185,6 +193,7 @@ export function selectScreen(
       ]),
       go,
     ]),
+    handler: new FocusRing({ items: [...moodButtons, ...durationButtons, go] }),
   };
 }
 
@@ -205,6 +214,7 @@ export function recoScreen(recommended: readonly Film[], cb: RecoCallbacks): Scr
         el("p", { class: "muted" }, ["Plus de film à proposer pour ces critères."]),
         end,
       ]),
+      handler: new FocusRing({ items: [end], onBack: cb.onNoneEndSession }),
     };
   }
 
@@ -238,6 +248,7 @@ export function recoScreen(recommended: readonly Film[], cb: RecoCallbacks): Scr
           ])
         : el("span", {}, []),
     ]),
+    handler: new FocusRing({ items: [playTop, ...restCards] }),
   };
 }
 
@@ -287,8 +298,37 @@ export function playerScreen(film: Film, onFinished: () => void): ScreenResult {
     skip,
   ]);
 
+  // Contrôles média en intentions (F14) : le lecteur expose play/pause/stop/volume
+  // en actions de premier plan (avant : « passer » uniquement). Navigation/confirm
+  // délégués à l'anneau (le bouton « Passer »).
+  const ring = new FocusRing({ items: [skip], onBack: finishOnce });
+  const handler: IntentHandler = {
+    handle(intent: Intent): void {
+      switch (intent) {
+        case "playPause":
+          if (videoEl) {
+            if (videoEl.paused) void videoEl.play();
+            else videoEl.pause();
+          }
+          break;
+        case "stop":
+          finishOnce();
+          break;
+        case "volumeUp":
+          if (videoEl) videoEl.volume = Math.min(1, videoEl.volume + 0.1);
+          break;
+        case "volumeDown":
+          if (videoEl) videoEl.volume = Math.max(0, videoEl.volume - 0.1);
+          break;
+        default:
+          ring.handle(intent);
+      }
+    },
+  };
+
   return {
     node,
+    handler,
     dispose: () => {
       disposed = true;
       if (intervalId !== undefined) clearInterval(intervalId);
@@ -329,6 +369,7 @@ export function afterFilmScreen(
       el("div", { class: "actions" }, [another, end]),
       countdown.node,
     ]),
+    handler: new FocusRing({ items: [another, end], onBack: cb.onEnd }),
     dispose: countdown.dispose,
   };
 }
@@ -371,5 +412,6 @@ export function endScreen(
       ]),
       done,
     ]),
+    handler: new FocusRing({ items: [done], onBack: onDone }),
   };
 }

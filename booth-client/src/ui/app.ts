@@ -15,6 +15,8 @@ import {
   unlockingScreen,
 } from "./screens";
 import { applyMoodTheme, resetMoodTheme } from "./moodTheme";
+import { InputController } from "../input/InputController";
+import { KeyboardInputSource } from "../input/sources/keyboard";
 
 export interface AppConfig {
   readonly boothId: string;
@@ -37,6 +39,10 @@ export class App {
   private lastQuery: MoodDurationQuery = { mood: null, maxDurationSeconds: null };
   private unlockController: AbortController | undefined;
   private endTimer: number | undefined;
+  // F14 : une seule instance pour toute la session. Les sources d'entrée (clavier
+  // maintenant, boutons physiques plus tard) sont attachées une fois ; chaque écran
+  // monté devient le handler actif via mount().
+  private readonly input: InputController;
 
   constructor(
     root: HTMLElement,
@@ -46,6 +52,7 @@ export class App {
     private readonly config: AppConfig,
   ) {
     this.root = root;
+    this.input = new InputController([new KeyboardInputSource()]);
   }
 
   start(): void {
@@ -61,6 +68,8 @@ export class App {
     }
     this.root.replaceChildren(result.node);
     this.currentDispose = result.dispose;
+    // L'écran monté devient le seul récepteur d'intentions (undefined = personne).
+    this.input.setHandler(result.handler);
   }
 
   // ── États ──────────────────────────────────────────────────────────────────
