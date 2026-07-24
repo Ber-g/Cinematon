@@ -1,5 +1,5 @@
 import type { FleetStore } from "../data/store";
-import type { Booth } from "../domain/types";
+import type { Booth, Media } from "../domain/types";
 import { el, formatMoney, relativeTime, icon } from "./dom";
 import { healthBadge, connectionBadge, indicatorChips } from "./components";
 import { timeSeriesChart } from "./chart";
@@ -11,7 +11,7 @@ import { openAccessModal, accessStatus, OPERATOR_ROLE_LABELS } from "./settings"
 // cabine. Chaque onglet est scopé à la borne, en réutilisant les données/méthodes du store —
 // aucune duplication de la logique métier des vues globales.
 
-export type HubTab = "synthese" | "maj" | "acces" | "fiche";
+export type HubTab = "synthese" | "maj" | "acces" | "fiche" | "medias" | "revenus";
 
 const DEPLOY_STATUS: Record<string, { label: string; cls: string }> = {
   pending: { label: "En attente", cls: "bg-secondary-lt" },
@@ -39,6 +39,7 @@ export function boothHubPage(
   onChanged: () => void,
   initialTab: HubTab = "synthese",
   onTabChange?: (t: HubTab) => void,
+  onOpenMedia?: () => void,
 ): HTMLElement {
   const booth = store.boothById(boothId);
   if (!booth) {
@@ -55,6 +56,8 @@ export function boothHubPage(
       tab === "maj" ? majTab(store, booth, canManage, onChanged)
       : tab === "acces" ? accesTab(store, booth, canManage)
       : tab === "fiche" ? ficheTab(store, booth, canManage)
+      : tab === "medias" ? mediasTab(store, booth, onOpenMedia)
+      : tab === "revenus" ? revenusTab(store, booth)
       : syntheseTab(booth);
     content.replaceChildren(view);
   };
@@ -72,6 +75,8 @@ export function boothHubPage(
   };
   const tabs = el("div", { class: "btn-group", role: "group" }, [
     tabBtn("synthese", "Synthèse"),
+    tabBtn("medias", "Médias"),
+    tabBtn("revenus", "Revenus"),
     tabBtn("maj", "MAJ"),
     tabBtn("acces", "Accès"),
     tabBtn("fiche", "Fiche & lieu"),
@@ -273,4 +278,143 @@ function ficheTab(store: FleetStore, booth: Booth, canManage: boolean): HTMLElem
     line("Notes d'accès", booth.notes),
     canManage ? el("span", {}, []) : el("div", { class: "text-secondary small mt-2" }, ["Modification réservée aux administrateurs de l'organisation."]),
   ])]);
+}
+
+// ── Onglet Médias : films physiquement présents sur CETTE borne ──────────────────
+// Lecture seule : la présence se pilote depuis la vue Médias globale (envoi batch).
+// On dérive du store (`mediaForBooth`) → aucune requête ad hoc, tout est scopé RLS.
+function mediaDuration(seconds: number): string {
+  const m = Math.round(seconds / 60);
+  return m > 0 ? `${m} min` : `${seconds}s`;
+}
+
+/** Badges sous-titres d'un média (vert = vérifié/calé, ambre = à retravailler). */
+function subtitleBadges(store: FleetStore, m: Media): HTMLElement {
+  const subs = store.subtitlesFor(m.id);
+  if (subs.length === 0) return el("span", { class: "text-secondary" }, ["—"]);
+  return el("span", { class: "d-inline-flex flex-wrap gap-1" }, subs.map((s) => {
+    const verified = s.workflowStatus === "verified";
+    return el("span", { class: `badge ${verified ? "bg-green-lt" : "bg-yellow-lt"}`, title: verified ? "Sous-titres présents et calés" : "Sous-titres à retravailler" }, [`${s.lang.toUpperCase()}${verified ? " ✓" : ""}`]);
+  }));
+}
+
+/** Badge état vidéo : validée par l'opérateur / à valider / pas de fichier. */
+function videoBadge(m: Media): HTMLElement {
+  if (!m.storageUrl) return el("span", { class: "badge bg-secondary-lt", title: "Aucun fichier vidéo" }, ["—"]);
+  if (m.reviewedAt) return el("span", { class: "badge bg-green-lt", title: `Validée le ${new Date(m.reviewedAt).toLocaleDateString("fr-FR")}` }, ["✓ Validée"]);
+  return el("span", { class: "badge bg-yellow-lt", title: "À valider par l'opérateur (via l'aperçu)" }, ["À valider"]);
+}
+
+function mediasTab(store: FleetStore, booth: Booth, onOpenMedia?: () => void): HTMLElement {
+  const media = store.mediaForBooth(booth.id);
+  const nowPlaying = booth.telemetry.currentFilmTitle;
+
+  // Renvoi vers la gestion globale (l'envoi/retrait de médias se fait là-bas).
+  const manageBtn = el("button", { class: "btn btn-outline-primary", type: "button" }, [icon("M4 5h16v14H4zM4 9h16M10 13l3 2l-3 2z", 18), el("span", {}, ["Gérer les médias"])]);
+  if (onOpenMedia) manageBtn.addEventListener("click", onOpenMedia);
+
+  const header = el("div", { class: "d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3" }, [
+    el("div", {}, [
+      el("h3", { class: "m-0" }, [`Médias sur cette cabine (${media.length})`]),
+      nowPlaying ? el("div", { class: "text-secondary small" }, [`En cours de lecture : ${nowPlaying}`]) : el("span", {}, []),
+    ]),
+    onOpenMedia ? manageBtn : el("span", {}, []),
+  ]);
+
+  // Empty state explicite : on n'affiche jamais un tableau vide muet.
+  if (media.length === 0) {
+    return el("div", {}, [header, el("div", { class: "card" }, [el("div", { class: "card-body text-secondary text-center py-5" }, [
+      el("div", { class: "mb-2" }, ["Aucun média n'est présent sur cette cabine pour l'instant."]),
+      el("div", { class: "small" }, ["Envoyez des films depuis la vue Médias pour qu'ils apparaissent ici."]),
+    ])])]);
+  }
+
+  const rows = media.map((m) => el("tr", {}, [
+    el("td", {}, [el("div", { class: "fw-bold" }, [m.title]), el("div", { class: "text-secondary small" }, [`${m.director || "—"} · ${m.year || "—"}`])]),
+    el("td", { class: "text-secondary" }, [mediaDuration(m.durationSeconds)]),
+    el("td", { class: "text-secondary" }, [m.language.toUpperCase()]),
+    el("td", {}, [subtitleBadges(store, m)]),
+    el("td", {}, [videoBadge(m)]),
+  ]));
+
+  return el("div", {}, [
+    header,
+    el("div", { class: "card" }, [el("div", { class: "table-responsive" }, [
+      el("table", { class: "table table-vcenter card-table" }, [
+        el("thead", {}, [el("tr", {}, [el("th", {}, ["Titre"]), el("th", {}, ["Durée"]), el("th", {}, ["Langue"]), el("th", {}, ["Sous-titres"]), el("th", {}, ["Vidéo"])])]),
+        el("tbody", {}, rows),
+      ]),
+    ])]),
+  ]);
+}
+
+// ── Onglet Revenus : chiffre d'affaires de CETTE borne (scopé boothId) ───────────
+// Réutilise la logique de la vue Revenus globale (revenue.ts) restreinte à la borne.
+function revenusTab(store: FleetStore, booth: Booth): HTMLElement {
+  const tx = store.transactionsForBooth(booth.id);
+  const currency = store.orgCurrency(booth.organizationId);
+
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const dayOf = (createdAt: number): string => new Date(createdAt).toISOString().slice(0, 10);
+  const sum = (list: typeof tx): number => list.reduce((n, t) => n + t.amountCents, 0);
+
+  // Fenêtre 30 jours (bornes incluses) : sert au KPI et au graphe (mêmes points).
+  const days: string[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  const window30 = new Set(days);
+  const todayCents = sum(tx.filter((t) => dayOf(t.createdAt) === todayStr));
+  const cents30 = sum(tx.filter((t) => window30.has(dayOf(t.createdAt))));
+
+  const byDay = new Map<string, number>();
+  for (const t of tx) byDay.set(dayOf(t.createdAt), (byDay.get(dayOf(t.createdAt)) ?? 0) + t.amountCents);
+  const points = days.map((d) => ({ date: d, value: byDay.get(d) ?? 0 }));
+
+  const kpi = (label: string, value: string): HTMLElement =>
+    el("div", { class: "col-sm-4" }, [el("div", { class: "card card-sm" }, [el("div", { class: "card-body" }, [
+      el("div", { class: "fs-2 fw-bold lh-1" }, [value]),
+      el("div", { class: "text-secondary" }, [label]),
+    ])])]);
+
+  const kpis = el("div", { class: "row row-cards g-2 mb-3" }, [
+    kpi("Aujourd'hui", formatMoney(todayCents, currency)),
+    kpi("30 derniers jours", formatMoney(cents30, currency)),
+    kpi("Transactions", String(tx.length)),
+  ]);
+
+  const chart = el("div", { class: "card mb-3" }, [el("div", { class: "card-body" }, [
+    timeSeriesChart({ title: "Revenu — 30 derniers jours", points, kind: "area", hue: "var(--tblr-teal)", formatValue: (n) => formatMoney(n, currency) }),
+  ])]);
+
+  // Dernières transactions (50 max). Pas de colonne « Kiosk » : tout est cette borne.
+  const recent = tx.slice(0, 50);
+  const txCard = el("div", { class: "card" }, [
+    el("div", { class: "card-header" }, [el("h3", { class: "card-title m-0" }, ["Dernières transactions"])]),
+    recent.length === 0
+      ? el("div", { class: "card-body text-secondary text-center py-5" }, ["Aucune transaction pour cette cabine sur la période."])
+      : el("div", { class: "table-responsive" }, [el("table", { class: "table table-vcenter card-table" }, [
+          el("thead", {}, [el("tr", {}, [el("th", {}, ["Date"]), el("th", { class: "text-end" }, ["Montant"]), el("th", {}, ["Fournisseur"])])]),
+          el("tbody", {}, recent.map((t) => el("tr", {}, [
+            el("td", { class: "text-secondary text-nowrap" }, [new Date(t.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })]),
+            el("td", { class: "text-end fw-bold text-nowrap" }, [formatMoney(t.amountCents, t.currency)]),
+            el("td", {}, [el("span", { class: "badge bg-secondary-lt" }, [t.provider])]),
+          ]))),
+        ])]),
+  ]);
+
+  // Cabine sans aucune transaction : empty state global (pas de graphe vide trompeur).
+  if (tx.length === 0) {
+    return el("div", {}, [
+      el("div", { class: "card" }, [el("div", { class: "card-body text-secondary text-center py-5" }, [
+        el("div", { class: "mb-2" }, ["Aucun revenu enregistré pour cette cabine."]),
+        el("div", { class: "small" }, ["Les paiements encaissés sur cette borne apparaîtront ici."]),
+      ])]),
+    ]);
+  }
+
+  return el("div", {}, [kpis, chart, txCard]);
 }

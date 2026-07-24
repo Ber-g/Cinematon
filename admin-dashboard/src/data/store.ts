@@ -868,6 +868,21 @@ export class FleetStore {
     return boothIds;
   }
 
+  /**
+   * Médias physiquement présents sur une Kiosk (inverse de `boothIdsForMedia`).
+   * Utilisé par le hub cabine (CIN-045) : on part des supports de la borne, on
+   * remonte les `media_instances` qui y résident, puis les médias correspondants.
+   * Tout est déjà scopé par la RLS (le cache ne contient que l'autorisé).
+   */
+  mediaForBooth(boothId: string): Media[] {
+    const locIds = new Set(this.storageLocations.filter((l) => l.boothId === boothId).map((l) => l.id));
+    const mediaIds = new Set<string>();
+    for (const mi of this.mediaInstances) {
+      if (locIds.has(mi.storageLocationId)) mediaIds.add(mi.mediaId);
+    }
+    return this.media.filter((m) => mediaIds.has(m.id));
+  }
+
   /** Support cible d'une Kiosk pour un envoi : privilégie le disque local. */
   private targetStorageLocation(boothId: string): StorageLocation | undefined {
     const forBooth = this.storageLocations.filter((l) => l.boothId === boothId);
@@ -954,6 +969,11 @@ export class FleetStore {
   /** Transactions (scopées RLS), plus récentes d'abord. */
   transactionsList(): TransactionRecord[] {
     return [...this.transactions].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  /** Transactions d'UNE Kiosk (scopées RLS), plus récentes d'abord — hub cabine (CIN-045). */
+  transactionsForBooth(boothId: string): TransactionRecord[] {
+    return this.transactionsList().filter((t) => t.boothId === boothId);
   }
 
   /** Liste des séances (F9) : séance + films joués (via `plays`), plus récentes d'abord. */
