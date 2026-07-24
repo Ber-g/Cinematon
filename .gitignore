@@ -22,6 +22,10 @@ kiosk/pki/certs/
 # Ticketing léger interne (en attendant GitHub Issues).
 /TODO.md
 /BACKLOG.md
+# Runbook d'actions humaines (infra Supabase/Cloudflare) — local, non public.
+/ACTIONS-BERANGER.md
+# Prompt de délégation à l'agent parallèle — local.
+/AGENT-PROMPT-CIN045.md
 
 # Logs
 logs
